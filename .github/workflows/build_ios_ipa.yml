@@ -1,0 +1,203 @@
+name: Build iOS IPA (unsigned, macos-15 runner)
+
+# Builds EspressU for iPhone on a GitHub-hosted Mac and uploads an UNSIGNED .ipa as a workflow artifact.
+# The steps follow the "Build" section of README.md. macos-15 images ship Xcode 26.x; macos-26 runners are often unavailable.
+# Sign/install the IPA with your sideloading tool of choice.
+
+on:
+  workflow_dispatch:
+    inputs:
+      configuration:
+        description: "Xcode build configuration for the app"
+        type: choice
+        options:
+          - Release
+          - Debug
+        default: Release
+  push:
+    branches:
+      - page-table-mode
+
+concurrency:
+  group: ios-ipa-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  VCPKG_ROOT: "${{ github.workspace }}/dependencies/vcpkg"
+  VCPKG_DEFAULT_BINARY_CACHE: "${{ github.workspace }}/.vcpkg-binary-cache"
+  VCPKG_DISABLE_METRICS: "1"
+  CONFIGURATION: ${{ inputs.configuration || 'Release' }}
+
+jobs:
+  build-ipa:
+    name: build-ios-ipa
+    runs-on: macos-15
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0 # vcpkg needs its full history to resolve the builtin-baseline
+
+      - name: Select Xcode 26
+        run: |
+          XCODE="$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -n 1 || true)"
+          if [ -n "$XCODE" ]; then
+            sudo xcode-select -s "$XCODE"
+          fi
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+
+      - name: Install build tools
+        run: |
+          brew update
+          brew install cmake ninja xcodegen pkg-config autoconf automake libtool nasm
+          cmake --version
+
+      - name: Install Metal toolchain
+        run: |
+          xcodebuild -downloadComponent MetalToolchain || echo "::warning::MetalToolchain download failed (it may already be installed)"
+
+      - name: Compute vcpkg cache key
+        id: vcpkg-key
+        run: |
+          VCPKG_HEAD="$(git -C dependencies/vcpkg rev-parse HEAD)"
+          INPUTS_HASH="$(cat vcpkg.json triplets/*.cmake | shasum -a 256 | cut -c1-16)"
+          OVERLAY_HASH="$(find dependencies/vcpkg_overlay_ports dependencies/vcpkg_overlay_ports_mac -type f | sort | xargs shasum -a 256 | shasum -a 256 | cut -c1-16)"
+          echo "key=vcpkg-ios-${VCPKG_HEAD:0:10}-${INPUTS_HASH}-${OVERLAY_HASH}" >> "$GITHUB_OUTPUT"
+
+      # restore + save (instead of one cache step) so a failed build still keeps the dependencies it managed to compile
+      - name: Restore vcpkg binary cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+          key: ${{ steps.vcpkg-key.outputs.key }}-${{ github.run_id }}
+          restore-keys: |
+            ${{ steps.vcpkg-key.outputs.key }}-
+            vcpkg-ios-
+
+      - name: Bootstrap vcpkg
+        run: |
+          mkdir -p "$VCPKG_DEFAULT_BINARY_CACHE"
+          ./dependencies/vcpkg/bootstrap-vcpkg.sh -disableMetrics
+
+      - name: Build StikJIT framework
+        run: |
+          set -o pipefail
+          ci/build-stikjit.sh 2>&1 | tee "$RUNNER_TEMP/stikjit.log"
+
+      # vcpkg builds all third party libraries for arm64-ios during this step
+      - name: Configure (CMake, Ninja, iOS)
+        run: |
+          set -o pipefail
+          cmake -S . -B build-ios -G Ninja \
+            -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_SYSROOT=iphoneos -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0 -DVCPKG_TARGET_TRIPLET=arm64-ios \
+            -DBUILD_HEADLESS_DYLIB=ON -DCMAKE_MACOSX_BUNDLE=OFF -DCMAKE_BUILD_TYPE=Release 2>&1 | tee "$RUNNER_TEMP/configure.log"
+
+      - name: Save vcpkg binary cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+          key: ${{ steps.vcpkg-key.outputs.key }}-${{ github.run_id }}
+
+      - name: Build Cemu.framework
+        run: |
+          set -o pipefail
+          cmake --build build-ios --target CemuBin 2>&1 | tee "$RUNNER_TEMP/cemubin.log"
+          mkdir -p build-ios/out && rm -rf build-ios/out/Cemu.framework && cp -R build-ios/src/Cemu.framework build-ios/out/
+
+      - name: Build EspressU.app
+        run: |
+          set -o pipefail
+          cd src/ios
+          xcodegen generate
+          xcodebuild \
+            -project EspressU.xcodeproj \
+            -scheme EspressU \
+            -configuration "$CONFIGURATION" \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$GITHUB_WORKSPACE/build-ios/DerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            build 2>&1 | tee "$RUNNER_TEMP/xcodebuild.log"
+
+      - name: Package unsigned IPA
+        run: |
+          APP="$(find build-ios/DerivedData/Build/Products -maxdepth 2 -name 'EspressU.app' -type d | head -n 1)"
+          test -n "$APP" || { echo "EspressU.app not found"; exit 1; }
+          echo "App bundle: $APP"
+          ls "$APP" "$APP/Frameworks" || true
+          rm -rf Payload && mkdir Payload
+          cp -R "$APP" Payload/
+          mkdir -p artifacts
+          zip -qry "artifacts/EspressU-unsigned.ipa" Payload
+          ls -lh artifacts
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: EspressU-unsigned-ipa
+          path: artifacts/EspressU-unsigned.ipa
+          if-no-files-found: error
+
+      # Puts the interesting part of the logs into check-run annotations (visible on the run summary page and via the API)
+      - name: Report errors
+        if: failure()
+        shell: python3 {0}
+        run: |
+          import glob, os
+
+          def esc(text):
+              return text.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+
+          temp = os.environ["RUNNER_TEMP"]
+
+          def tail(path, lines, limit=6000):
+              try:
+                  with open(path, errors="replace") as f:
+                      data = "".join(f.readlines()[-lines:])
+              except OSError:
+                  return None
+              return data[-limit:]
+
+          def report(title, path, lines=50):
+              data = tail(path, lines)
+              if data:
+                  print(f"::error title={title}::{esc(data)}")
+
+          def report_errors(title, path):
+              try:
+                  with open(path, errors="replace") as f:
+                      hits = [l.rstrip() for l in f if "error:" in l or "error build" in l or "FAILED:" in l or "ld: " in l or "Undefined symbols" in l]
+              except OSError:
+                  return
+              if hits:
+                  print(f"::error title={title}::{esc(chr(10).join(hits[:40])[-6000:])}")
+
+          report("StikJIT build output (tail)", f"{temp}/stikjit.log", 40)
+          report("CMake configure output (tail)", f"{temp}/configure.log", 60)
+          errlogs = sorted(glob.glob("dependencies/vcpkg/buildtrees/*/*-err.log"), key=os.path.getmtime, reverse=True)
+          for path in errlogs[:3]:
+              report(f"vcpkg log {os.path.relpath(path, 'dependencies/vcpkg/buildtrees')} (tail)", path, 40)
+          report_errors("CemuBin compile errors", f"{temp}/cemubin.log")
+          report("CemuBin build output (tail)", f"{temp}/cemubin.log", 40)
+          report_errors("xcodebuild errors", f"{temp}/xcodebuild.log")
+          report("xcodebuild output (tail)", f"{temp}/xcodebuild.log", 40)
+
+      - name: Upload build logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            ${{ runner.temp }}/stikjit.log
+            ${{ runner.temp }}/configure.log
+            ${{ runner.temp }}/cemubin.log
+            ${{ runner.temp }}/xcodebuild.log
+            build-ios/vcpkg-manifest-install.log
+            dependencies/vcpkg/buildtrees/*/*.log
+          if-no-files-found: ignore
