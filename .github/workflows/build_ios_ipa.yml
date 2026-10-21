@@ -178,6 +178,7 @@ jobs:
               if hits:
                   print(f"::error title={title}::{esc(chr(10).join(hits[:40])[-6000:])}")
 
+          report_errors("StikJIT errors", f"{temp}/stikjit.log")
           report("StikJIT build output (tail)", f"{temp}/stikjit.log", 40)
           report("CMake configure output (tail)", f"{temp}/configure.log", 60)
           errlogs = sorted(glob.glob("dependencies/vcpkg/buildtrees/*/*-err.log"), key=os.path.getmtime, reverse=True)
