@@ -56,6 +56,12 @@ void MetalSynchronizedRingAllocator::allocateAdditionalUploadBuffer(uint32 sizeR
 		if (attemptSize <= sizeRequiredForAlloc)
 			break;
 	}
+	if (mtlBuffer && !mtlBuffer->contents())
+	{
+		// a buffer without a CPU mapping is as unusable as no buffer (out of memory)
+		mtlBuffer->release();
+		mtlBuffer = nullptr;
+	}
 	if (mtlBuffer)
 		bufferAllocSize = attemptSize;
 	if (!mtlBuffer)
