@@ -156,7 +156,7 @@ jobs:
 
           temp = os.environ["RUNNER_TEMP"]
 
-          def tail(path, lines, limit=6000):
+          def tail(path, lines, limit=3800):
               try:
                   with open(path, errors="replace") as f:
                       data = "".join(f.readlines()[-lines:])
