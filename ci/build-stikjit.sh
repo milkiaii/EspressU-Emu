@@ -29,7 +29,8 @@ xcodebuild archive \
   -destination 'generic/platform=iOS' \
   -archivePath "$WORK/StikJIT-iOS" \
   SKIP_INSTALL=NO \
-  BUILD_LIBRARY_FOR_DISTRIBUTION=NO \
+  BUILD_LIBRARY_FOR_DISTRIBUTION=YES \
+  OTHER_SWIFT_FLAGS="-Xfrontend -module-interface-preserve-types-as-written" \
   CODE_SIGNING_ALLOWED=NO
 
 FRAMEWORK="$WORK/StikJIT-iOS.xcarchive/Products/Library/Frameworks/StikJIT.framework"
