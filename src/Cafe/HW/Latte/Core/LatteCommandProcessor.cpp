@@ -323,7 +323,7 @@ LatteCMDPtr LatteCP_itSetRegistersGeneric(LatteCMDPtr cmd, uint32 nWords)
 			uint32 dataWord = LatteReadCMD();
 			MPTR regShadowAddr = shadowAddrs[indexCounter];
 			if (regShadowAddr)
-				*(uint32*)(memory_base + regShadowAddr) = _swapEndianU32(dataWord);
+				*(uint32*)(memory_translate(regShadowAddr)) = _swapEndianU32(dataWord);
 			outputReg[indexCounter] = dataWord;
 			indexCounter++;
 		}
@@ -363,7 +363,7 @@ LatteCMDPtr LatteCP_itSetRegistersGeneric(LatteCMDPtr cmd, uint32 nWords, TRegRa
 			uint32 dataWord = LatteReadCMD();
 			MPTR regShadowAddr = shadowAddrs[indexCounter];
 			if (regShadowAddr)
-				*(uint32*)(memory_base + regShadowAddr) = _swapEndianU32(dataWord);
+				*(uint32*)(memory_translate(regShadowAddr)) = _swapEndianU32(dataWord);
 			outputReg[indexCounter] = dataWord;
 			indexCounter++;
 		}

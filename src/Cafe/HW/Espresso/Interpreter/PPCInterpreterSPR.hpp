@@ -155,11 +155,11 @@ static void setSCR(PPCInterpreter_t* hCPU, uint32 newValue)
 	{
 		debug_printf("SCR MSB set. Unmap bootrom?\n");
 
-		memset(memory_base, 0, 0x4000);
+		memset(memory_translate(0), 0, 0x4000);
 
 #ifdef _WIN32
 		DWORD oldProtect;
-		VirtualProtect(memory_base, 0x1000, PAGE_READONLY, &oldProtect);
+		VirtualProtect(memory_translate(0), 0x1000, PAGE_READONLY, &oldProtect);
 #endif
 	}
 	debug_printf("Set SCR to 0x%08x\n", newValue);
@@ -234,12 +234,12 @@ static void setDMAL(PPCInterpreter_t* hCPU, uint32 newValue)
 		if( isLoad == 0 )
 		{
 			debug_printf("L2->MEM %08x -> %08x size: 0x%x\n", memAddr, 0xE0000000 + cacheAddr, transferLength);
-			memcpy(memory_getPointerFromVirtualOffset(memAddr), memory_base+0xE0000000+cacheAddr, transferLength);
+			memcpy(memory_getPointerFromVirtualOffset(memAddr), memory_translate(0xE0000000+cacheAddr), transferLength);
 		}
 		else
 		{
 			debug_printf("MEM->L2 %08x -> %08x size: 0x%x\n", 0xE0000000 + cacheAddr, memAddr, transferLength);
-			memcpy(memory_base + 0xE0000000 + cacheAddr, memory_getPointerFromVirtualOffset(memAddr), transferLength);
+			memcpy(memory_translate(0xE0000000 + cacheAddr), memory_getPointerFromVirtualOffset(memAddr), transferLength);
 		}
 		newValue &= ~2;
 		hCPU->sprExtended.dmaL = newValue;
