@@ -1,5 +1,6 @@
 #pragma once
 
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -34,4 +35,6 @@ namespace MemMapper
 	// Measures how much address space the process can still reserve (PROT_NONE, costs no RAM). Everything reserved for the
 	// measurement is released again before returning. Only implemented for the Unix/Apple MemMapper.
 	FreeAddressSpaceInfo ProbeFreeAddressSpace(size_t capBytes = size_t{8} * 1024 * 1024 * 1024);
+	// Apple platforms: describes the biggest groups of the process' virtual memory by memory tag ("tag MiB/regions"), "" elsewhere.
+	std::string DescribeVirtualMemory();
 };

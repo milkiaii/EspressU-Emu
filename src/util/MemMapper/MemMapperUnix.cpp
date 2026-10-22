@@ -3,6 +3,9 @@
 #include <unistd.h>
 #include <sys/mman.h>
 #include <algorithm>
+#include <map>
+#include <string>
+#include <vector>
 
 #if BOOST_OS_MACOS || BOOST_OS_IOS
 #include <mach/mach.h>
@@ -257,6 +260,56 @@ void FreeMemory(void* baseAddr, size_t size, bool fromReservation)
 		for (const auto& block : held)
 			FreeReservation(block.ptr, block.size);
 		return info;
+	}
+
+	std::string DescribeVirtualMemory()
+	{
+#if BOOST_OS_MACOS || BOOST_OS_IOS
+		try
+		{
+			struct Sum
+			{
+				uint64_t bytes = 0;
+				uint32_t regions = 0;
+			};
+			std::map<std::pair<uint32_t, bool>, Sum> groups; // (memory tag, no access = address space only)
+			uint64_t total = 0;
+			vm_address_t address = 0;
+			natural_t depth = 0;
+			for (uint32_t guard = 0; guard < 200000; guard++)
+			{
+				vm_size_t size = 0;
+				vm_region_submap_info_data_64_t info;
+				mach_msg_type_number_t count = VM_REGION_SUBMAP_INFO_COUNT_64;
+				if (vm_region_recurse_64(mach_task_self(), &address, &size, &depth, (vm_region_recurse_info_t)&info, &count) != KERN_SUCCESS)
+					break;
+				if (info.is_submap)
+				{
+					depth++;
+					continue;
+				}
+				Sum& sum = groups[{(uint32_t)info.user_tag, info.protection == VM_PROT_NONE}];
+				sum.bytes += size;
+				sum.regions++;
+				total += size;
+				address += size;
+			}
+			std::vector<std::pair<std::pair<uint32_t, bool>, Sum>> sorted(groups.begin(), groups.end());
+			std::sort(sorted.begin(), sorted.end(), [](const auto& l, const auto& r) { return l.second.bytes > r.second.bytes; });
+			std::string text = std::to_string(total >> 20) + " MiB mapped in total: ";
+			for (size_t i = 0; i < sorted.size() && i < 10; i++)
+			{
+				text += "tag" + std::to_string(sorted[i].first.first) + (sorted[i].first.second ? " reserved " : " ");
+				text += std::to_string(sorted[i].second.bytes >> 20) + "MiB/" + std::to_string(sorted[i].second.regions) + "  ";
+			}
+			return text;
+		}
+		catch (const std::exception&)
+		{
+			// can be called while memory is nearly exhausted
+		}
+#endif
+		return {};
 	}
 
 }
