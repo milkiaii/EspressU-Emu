@@ -158,6 +158,8 @@ static bool memory_tryBuildPageTable(const std::vector<PageTableSegment>& segmen
 	}
 
 	s_pageTableStorage.assign(NUM_PAGES, faultGranule); // every guest page that is not backed faults
+	s_pageTableReverse.clear();
+	s_pageTableReverse.reserve(MAX_ARENAS); // later arenas (optional ranges) must not move the existing reverse tables
 	s_pageTableReverse.assign(groups.size(), {});
 	for (size_t g = 0; g < groups.size(); g++)
 	{
@@ -256,6 +258,46 @@ bool memory_isGuestRangeReserved(uint32 address, uint32 size)
 			return false; // not contiguous on the host
 		previous = host;
 	}
+	return true;
+}
+
+// Backs an optional guest range (the overlay arena) that was left out of the initial page table. Reserves one more host block
+// (range + guard granule), points the page table at it and adds it to the reverse lookup. The block stays reserved for the rest of
+// the process, so later titles reuse it. Called when a title asks for the range, so titles that don't need it pay nothing.
+static bool memory_attachOptionalRangePageTable(uint32 guestBase, uint32 guestSize)
+{
+	using namespace MMUTranslate;
+	if ((guestBase & PAGE_MASK) != 0 || (guestSize & PAGE_MASK) != 0 || g_memoryArenaCount >= MAX_ARENAS)
+		return false;
+	const uint32 firstPage = guestBase >> PAGE_SHIFT;
+	const uint32 pageCount = guestSize >> PAGE_SHIFT;
+	for (uint32 p = 0; p < pageCount; p++)
+	{
+		if (s_pageTableStorage[firstPage + p] != g_memoryFaultGranule)
+			return false; // overlaps memory that is already backed
+	}
+	const size_t arenaSize = (size_t)guestSize + PAGE_SIZE; // range + guard granule
+	memory_logFreeAddressSpace("before reserving an optional guest range");
+	uint8* base = (uint8*)MemMapper::ReserveMemory(nullptr, arenaSize, MemMapper::PAGE_PERMISSION::P_NONE);
+	if (!base)
+	{
+		cemuLog_log(LogType::Force, "Page-table mode: unable to reserve {} MiB for the guest range {:08x}-{:08x}", arenaSize >> 20, guestBase, (uint64)guestBase + guestSize);
+		memory_logFreeAddressSpace("after the failed reservation");
+		return false;
+	}
+	// reverse table first, then the forward table, then publish the arena
+	const uint32 arenaIndex = g_memoryArenaCount;
+	s_pageTableReverse.emplace_back(arenaSize >> PAGE_SHIFT, REVERSE_UNMAPPED); // outer vector has reserved capacity, inner buffers never move
+	std::vector<uint32>& reverse = s_pageTableReverse.back();
+	for (uint32 p = 0; p < pageCount; p++)
+		reverse[p] = firstPage + p;
+	reverse[pageCount] = (guestBase + guestSize) >> PAGE_SHIFT; // guard granule maps to the page behind the range
+	for (uint32 p = 0; p < pageCount; p++)
+		s_pageTableStorage[firstPage + p] = base + ((size_t)p << PAGE_SHIFT);
+	g_memoryArenas[arenaIndex] = {base, arenaSize, reverse.data()};
+	g_memoryArenaCount = arenaIndex + 1;
+	cemuLog_log(LogType::Force, "Page-table mode: backed guest range {:08x}-{:08x} with a {} MiB host block at {:#x}", guestBase, (uint64)guestBase + guestSize, arenaSize >> 20, (uintptr_t)base);
+	memory_logFreeAddressSpace("after reserving an optional guest range");
 	return true;
 }
 #else
@@ -601,9 +643,14 @@ void memory_enableOverlayArena()
 		return;
 	if (!memory_isGuestRangeReserved(mmuRange_OVERLAY_AREA.getBase(), mmuRange_OVERLAY_AREA.getSize()))
 	{
-		// page-table mode does not reserve the optional overlay range
-		cemuLog_log(LogType::Force, "Overlay arena is not available in page-table mode");
-		return;
+		// page-table mode leaves the optional overlay range out of the initial layout; back it now that a title asks for it
+#if CEMU_MMU_PAGETABLE_SUPPORTED
+		if (!memory_attachOptionalRangePageTable(mmuRange_OVERLAY_AREA.getBase(), mmuRange_OVERLAY_AREA.getSize()))
+#endif
+		{
+			cemuLog_log(LogType::Force, "Overlay arena is not available in page-table mode (could not reserve host memory for it)");
+			return;
+		}
 	}
 	mmuRange_OVERLAY_AREA.mapMem();
 }
