@@ -298,7 +298,6 @@ static bool memory_attachOptionalRangePageTable(uint32 guestBase, uint32 guestSi
 	g_memoryArenaCount = arenaIndex + 1;
 	cemuLog_log(LogType::Force, "Page-table mode: backed guest range {:08x}-{:08x} with a {} MiB host block at {:#x}", guestBase, (uint64)guestBase + guestSize, arenaSize >> 20, (uintptr_t)base);
 	memory_logFreeAddressSpace("after reserving an optional guest range");
-	memory_logVirtualMemoryBreakdown("after reserving an optional guest range");
 	return true;
 }
 #else
@@ -317,18 +316,6 @@ void memory_logFreeAddressSpace(const char* label)
 	for (const auto& block : info.blocks)
 		blocks += fmt::format("{}x{}MiB ", block.second, block.first >> 20);
 	cemuLog_log(LogType::Force, "Address space ({}): largest free block {} MiB, total reservable {} MiB (probe capped at 8 GiB) [{}]", label, info.largestBlockBytes >> 20, info.totalBytes >> 20, blocks);
-#else
-	(void)label;
-#endif
-}
-
-// Logs the biggest groups of the process' virtual memory by memory tag ("reserved" = no access, address space only)
-void memory_logVirtualMemoryBreakdown(const char* label)
-{
-#if BOOST_OS_IOS
-	const std::string text = MemMapper::DescribeVirtualMemory();
-	if (!text.empty())
-		cemuLog_log(LogType::Force, "Virtual memory ({}): {} (tag MiB/regions)", label, text);
 #else
 	(void)label;
 #endif

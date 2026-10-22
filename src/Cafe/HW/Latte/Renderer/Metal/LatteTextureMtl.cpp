@@ -86,7 +86,7 @@ LatteTextureMtl::LatteTextureMtl(class MetalRenderer* mtlRenderer, Latte::E_DIM 
 		cemuLog_logOnce(LogType::Force, "Metal: could not allocate a {}x{} guest texture; substituting a null texture", width, height);
 		m_texture = mtlRenderer->GetNullTexture2D()->retain();
 		m_isNullSubstitute = true;
-		LatteWait::Get().requestEvictionThrottled();
+		LatteWait::Get().evictionRequested.store(true);
 	}
 }
 

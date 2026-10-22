@@ -3,8 +3,6 @@
 
 void memory_init();
 void memory_logFreeAddressSpace(const char* label);
-// iOS: logs how much virtual address space the process holds, grouped by the kind of memory (malloc, stacks, Metal/IOKit, ...)
-void memory_logVirtualMemoryBreakdown(const char* label);
 void memory_mapForCurrentTitle();
 void memory_unmapForCurrentTitle();
 

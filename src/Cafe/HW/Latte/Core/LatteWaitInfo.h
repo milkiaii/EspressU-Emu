@@ -52,18 +52,6 @@ namespace LatteWait
 		std::atomic<uint32_t> memReadbackMB{0};
 		std::atomic<uint32_t> texturesEvicted{0};
 		std::atomic<bool> evictionRequested{false};
-		std::atomic<int64_t> lastEvictionRequestMs{0};
-		// For allocation failures: an eviction pass deletes up to 200 textures, so asking again on every failed allocation makes the
-		// game re-create the same textures over and over. At most one request per second.
-		void requestEvictionThrottled()
-		{
-			const int64_t nowMs = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
-			int64_t last = lastEvictionRequestMs.load(std::memory_order_relaxed);
-			if (last != 0 && nowMs - last < 1000)
-				return;
-			if (lastEvictionRequestMs.compare_exchange_strong(last, nowMs, std::memory_order_relaxed))
-				evictionRequested.store(true);
-		}
 		std::atomic<uint32_t> evictionPasses{0};
 		std::atomic<bool> memStatsValid{false};
 

@@ -161,14 +161,7 @@ void* MetalMemoryManager::AcquireTextureUploadBuffer(size_t size)
             {
                 std::vector<uint8>().swap(m_textureUploadBuffer);
                 cemuLog_logOnce(LogType::Force, "Metal: could not allocate a {} byte texture upload buffer, skipping the upload", size);
-                static bool s_loggedAddressSpace = false;
-                if (!s_loggedAddressSpace)
-                {
-                    s_loggedAddressSpace = true;
-                    memory_logFreeAddressSpace("first texture upload buffer allocation failure");
-                    memory_logVirtualMemoryBreakdown("first texture upload buffer allocation failure");
-                }
-                LatteWait::Get().requestEvictionThrottled();
+                LatteWait::Get().evictionRequested.store(true);
                 return nullptr;
             }
         }

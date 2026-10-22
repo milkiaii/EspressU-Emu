@@ -1224,7 +1224,6 @@ static bool PPCRecompiler_readDualMapEnvVar()
 
 #if defined(__APPLE__) && BOOST_OS_IOS
 extern "C" void cemu_bridge_log_checkpoint(const char* message);
-extern "C" int cemu_bridge_jit_arena_limit_mb(void);
 #endif
 
 // One line in the crash log saying what the JIT start-up saw, so a "JIT doesn't work" report says why.
@@ -1326,16 +1325,6 @@ bool PPCRecompiler_Init26() {
         size_t firstCandidate = 0;
         while (firstCandidate + 1 < std::size(kArenaSizes) && kArenaSizes[firstCandidate] > arenaStart)
             firstCandidate++;
-#if BOOST_OS_IOS
-        // "JIT code cache" setting: a smaller arena leaves address space for heavy games (it is mapped twice, so 64 MB costs 128 MiB)
-        const size_t userLimitMB = (size_t)cemu_bridge_jit_arena_limit_mb();
-        if (userLimitMB != 0)
-        {
-            while (firstCandidate + 1 < std::size(kArenaSizes) && kArenaSizes[firstCandidate] > userLimitMB * kMB)
-                firstCandidate++;
-            cemuLog_log(LogType::Force, "JIT arena: the JIT code cache setting asks for at most {} MB", userLimitMB);
-        }
-#endif
 #if BOOST_OS_IOS
         const uint64 availableBytes = os_proc_available_memory();
         if (availableBytes != 0)

@@ -547,11 +547,6 @@ extern "C" const char* cemu_bridge_device_report(void)
 size_t PPCRecompiler_getJitArenaSize();
 size_t PPCRecompiler_getJitArenaUsed();
 
-int cemu_bridge_jit_arena_limit_mb(void) {
-    const NSInteger value = [[NSUserDefaults standardUserDefaults] integerForKey:@"espressu.jit.arenaLimitMB"];
-    return value > 0 ? (int)value : 0;
-}
-
 const char* cemu_bridge_memory_headroom_summary(void) {
     static thread_local std::string summary;
     const uint64_t avail = (uint64_t)os_proc_available_memory();

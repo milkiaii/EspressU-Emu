@@ -69,7 +69,7 @@ void MetalSynchronizedRingAllocator::allocateAdditionalUploadBuffer(uint32 sizeR
 		static uint32 s_failures = 0;
 		if (s_failures++ < 8 || (s_failures % 500) == 0)
 			cemuLog_log(LogType::Force, "Metal: staging buffer allocation failed, wanted {} bytes ({} failures so far)", bufferAllocSize, s_failures);
-		LatteWait::Get().requestEvictionThrottled();
+		LatteWait::Get().evictionRequested.store(true);
 		return;
 	}
 
