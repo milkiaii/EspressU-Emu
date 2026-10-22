@@ -1092,8 +1092,7 @@ static void emitGuestAddressTranslate(AArch64GenContext_t& ctx)
 	constexpr uint32 pageShift = MMUTranslate::PAGE_SHIFT;
 	ctx.lsr(TEMP_GPR2.WReg, TEMP_GPR1.WReg, pageShift); // page index (the W write zeroes the upper 32 bits)
 	ctx.ldr(TEMP_GPR2.XReg, AdrReg(MEM_BASE_REG, TEMP_GPR2.XReg, ShMod::LSL, 3)); // host page pointer
-	ctx.lsl(TEMP_GPR1.WReg, TEMP_GPR1.WReg, 32 - pageShift);
-	ctx.lsr(TEMP_GPR1.WReg, TEMP_GPR1.WReg, 32 - pageShift); // offset inside the page
+	ctx.ubfm(TEMP_GPR1.WReg, TEMP_GPR1.WReg, 0, pageShift - 1); // offset inside the page (ubfx #0, #pageShift): one instruction instead of lsl + lsr
 	ctx.add(TEMP_GPR1.XReg, TEMP_GPR2.XReg, TEMP_GPR1.XReg); // host pointer
 }
 
