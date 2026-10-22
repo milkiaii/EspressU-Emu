@@ -5,7 +5,12 @@
 #include "util/MemMapper/MemMapper.h"
 #include "config/ActiveSettings.h"
 #include <algorithm>
+#include <map>
 #include <vector>
+#if BOOST_OS_IOS
+#include <mach/mach.h>
+#include <mach/vm_map.h>
+#endif
 #if BOOST_OS_IOS
 #include "util/MemMapper/SparseReservation.h"
 #endif
@@ -298,6 +303,7 @@ static bool memory_attachOptionalRangePageTable(uint32 guestBase, uint32 guestSi
 	g_memoryArenaCount = arenaIndex + 1;
 	cemuLog_log(LogType::Force, "Page-table mode: backed guest range {:08x}-{:08x} with a {} MiB host block at {:#x}", guestBase, (uint64)guestBase + guestSize, arenaSize >> 20, (uintptr_t)base);
 	memory_logFreeAddressSpace("after reserving an optional guest range");
+	memory_logVirtualMemoryBreakdown("after reserving an optional guest range");
 	return true;
 }
 #else
@@ -316,6 +322,51 @@ void memory_logFreeAddressSpace(const char* label)
 	for (const auto& block : info.blocks)
 		blocks += fmt::format("{}x{}MiB ", block.second, block.first >> 20);
 	cemuLog_log(LogType::Force, "Address space ({}): largest free block {} MiB, total reservable {} MiB (probe capped at 8 GiB) [{}]", label, info.largestBlockBytes >> 20, info.totalBytes >> 20, blocks);
+#else
+	(void)label;
+#endif
+}
+
+// Walks the process' virtual memory map and logs the biggest groups by memory tag. "reserved" means no access (address space only).
+void memory_logVirtualMemoryBreakdown(const char* label)
+{
+#if BOOST_OS_IOS
+	try
+	{
+	struct Sum { uint64 bytes = 0; uint32 regions = 0; };
+	std::map<std::pair<uint32, bool>, Sum> groups; // (tag, reserved)
+	uint64 total = 0;
+	vm_address_t address = 0;
+	natural_t depth = 0;
+	for (uint32 guard = 0; guard < 200000; guard++)
+	{
+		vm_size_t size = 0;
+		vm_region_submap_info_data_64_t info;
+		mach_msg_type_number_t count = VM_REGION_SUBMAP_INFO_COUNT_64;
+		if (vm_region_recurse_64(mach_task_self(), &address, &size, &depth, (vm_region_recurse_info_t)&info, &count) != KERN_SUCCESS)
+			break;
+		if (info.is_submap)
+		{
+			depth++;
+			continue;
+		}
+		Sum& sum = groups[{(uint32)info.user_tag, info.protection == VM_PROT_NONE}];
+		sum.bytes += size;
+		sum.regions++;
+		total += size;
+		address += size;
+	}
+	std::vector<std::pair<std::pair<uint32, bool>, Sum>> sorted(groups.begin(), groups.end());
+	std::sort(sorted.begin(), sorted.end(), [](const auto& a, const auto& b) { return a.second.bytes > b.second.bytes; });
+	std::string text;
+	for (size_t i = 0; i < sorted.size() && i < 10; i++)
+		text += fmt::format("tag{}{} {}MiB/{} ", sorted[i].first.first, sorted[i].first.second ? " reserved" : "", sorted[i].second.bytes >> 20, sorted[i].second.regions);
+	cemuLog_log(LogType::Force, "Virtual memory ({}): {} MiB mapped in total, biggest groups (tag MiB/regions): {}", label, total >> 20, text);
+	}
+	catch (const std::exception&)
+	{
+		// called while memory is nearly exhausted: skip the log rather than fail inside the failure path
+	}
 #else
 	(void)label;
 #endif

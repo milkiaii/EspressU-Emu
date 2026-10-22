@@ -166,6 +166,7 @@ void* MetalMemoryManager::AcquireTextureUploadBuffer(size_t size)
                 {
                     s_loggedAddressSpace = true;
                     memory_logFreeAddressSpace("first texture upload buffer allocation failure");
+                    memory_logVirtualMemoryBreakdown("first texture upload buffer allocation failure");
                 }
                 LatteWait::Get().requestEvictionThrottled();
                 return nullptr;
