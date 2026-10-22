@@ -14,6 +14,7 @@
 #include "Cafe/HW/Latte/Renderer/Metal/LatteToMtl.h"
 #include "config/ActiveSettings.h"
 #include "util/helpers/StringBuf.h"
+#include "Cafe/HW/MMU/MMU.h"
 
 #include <bitset>
 #include <boost/container/small_vector.hpp>
@@ -3598,6 +3599,17 @@ void LatteDecompiler_emitMSLShader(LatteDecompilerShaderContext* shaderContext, 
 		(shaderContext->fetchShader && shaderContext->fetchShader->mtlFetchVertexManually);
 
 	StringBuf* src = new StringBuf(1024*1024*12);
+	if (!src->isValid())
+	{
+		// out of memory: fail this shader (the draw is skipped) instead of writing through a null pointer
+		cemuLog_log(LogType::Force, "Metal: not enough memory to build the source of shader {:016x}, skipping it", shaderContext->shaderBaseHash);
+		memory_logFreeAddressSpace("shader source allocation failed");
+		memory_logVirtualMemoryBreakdown("shader source allocation failed");
+		delete src;
+		shaderContext->shaderSource = nullptr;
+		shader->hasError = true;
+		return;
+	}
 	shaderContext->shaderSource = src;
 
 	src->addFmt("// shader {:016x}" _CRLF, shaderContext->shaderBaseHash);
