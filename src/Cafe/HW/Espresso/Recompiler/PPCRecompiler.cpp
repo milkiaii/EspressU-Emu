@@ -1262,6 +1262,31 @@ size_t PPCRecompiler_getJitArenaUsed()
     return s_jitArena.region.rxAlias ? s_jitArena.usedBytes() : 0;
 }
 
+// The jump table is one contiguous ~512 MiB reservation. It has to be reserved BEFORE the JIT code arena: the dual-mapped arena costs
+// twice its size in address space and can use up the large free blocks, which makes this reservation fail on small address spaces.
+static bool PPCRecompiler_reserveInstanceData()
+{
+    if (ppcRecompilerInstanceData)
+        return true;
+    memory_logFreeAddressSpace("before recompiler jump table reservation");
+    auto* data = (PPCRecompilerInstanceData_t*)MemMapper::ReserveMemory(nullptr, sizeof(PPCRecompilerInstanceData_t), MemMapper::PAGE_PERMISSION::P_RW);
+    if (!data)
+    {
+        cemuLog_log(LogType::Force, "Recompiler: unable to reserve {} MiB for the jump table", sizeof(PPCRecompilerInstanceData_t) >> 20);
+        memory_logFreeAddressSpace("jump table reservation failed");
+        return false;
+    }
+    if (!MemMapper::AllocateMemory(&(data->_x64XMM_xorNegateMaskBottom), sizeof(PPCRecompilerInstanceData_t) - offsetof(PPCRecompilerInstanceData_t, _x64XMM_xorNegateMaskBottom), MemMapper::PAGE_PERMISSION::P_RW, true))
+    {
+        cemuLog_log(LogType::Force, "Recompiler: unable to commit the recompiler instance data");
+        MemMapper::FreeReservation(data, sizeof(PPCRecompilerInstanceData_t));
+        return false;
+    }
+    ppcRecompilerInstanceData = data;
+    memory_logFreeAddressSpace("after recompiler jump table reservation");
+    return true;
+}
+
 bool PPCRecompiler_Init26() {
     if (PPCRecompiler_jitNeedsDebugger()) {
         PPCRecompiler_logJitState("no debugger, running the interpreter");
@@ -1282,6 +1307,15 @@ bool PPCRecompiler_Init26() {
 
     try
     {
+        const bool instanceDataIsNew = (ppcRecompilerInstanceData == nullptr);
+        if (!PPCRecompiler_reserveInstanceData())
+        {
+            cemuLog_log(LogType::Force, "Recompiler: no address space for the jump table, disabling JIT");
+            ppcRecompilerEnabled = false;
+            ppcRecompilerInited = false;
+        }
+        else
+        {
         constexpr size_t kMB = 1024ull * 1024ull;
         constexpr size_t kArenaSizes[] = {
             512 * kMB, 384 * kMB, 256 * kMB, 128 * kMB, 64 * kMB
@@ -1317,6 +1351,7 @@ bool PPCRecompiler_Init26() {
         if (!chosenArena)
         {
             cemuLog_log(LogType::Force, "JIT arena allocation failed at every size, disabling JIT");
+            memory_logFreeAddressSpace("JIT arena allocation failed");
             ppcRecompilerEnabled = false;
             ppcRecompilerInited = false;
         }
@@ -1339,13 +1374,10 @@ bool PPCRecompiler_Init26() {
             g_jitArenaRwBase = s_jitArena.region.rwAlias;
             ppcRecompilerInited = true;
 
-            if (!ppcRecompilerInstanceData)
-            {
-            debug_printf("Allocating %dMB for recompiler instance data...\n", (sint32)(sizeof(PPCRecompilerInstanceData_t) / 1024 / 1024));
-            ppcRecompilerInstanceData = (PPCRecompilerInstanceData_t*)MemMapper::ReserveMemory(nullptr, sizeof(PPCRecompilerInstanceData_t), MemMapper::PAGE_PERMISSION::P_RW);
-            MemMapper::AllocateMemory(&(ppcRecompilerInstanceData->_x64XMM_xorNegateMaskBottom), sizeof(PPCRecompilerInstanceData_t) - offsetof(PPCRecompilerInstanceData_t, _x64XMM_xorNegateMaskBottom), MemMapper::PAGE_PERMISSION::P_RW, true);
-            PPCRecompilerAArch64Gen_generateRecompilerInterfaceFunctions();
-            }
+            memory_logFreeAddressSpace("after JIT arena allocation");
+            if (instanceDataIsNew)
+                PPCRecompilerAArch64Gen_generateRecompilerInterfaceFunctions();
+        }
         }
     }
     catch (const std::exception& e)
@@ -1436,8 +1468,13 @@ void PPCRecompiler_init()
         if (!ppcRecompilerInstanceData)
         {
         debug_printf("Allocating %dMB for recompiler instance data...\n", (sint32)(sizeof(PPCRecompilerInstanceData_t) / 1024 / 1024));
-        ppcRecompilerInstanceData = (PPCRecompilerInstanceData_t*)MemMapper::ReserveMemory(nullptr, sizeof(PPCRecompilerInstanceData_t), MemMapper::PAGE_PERMISSION::P_RW);
-        MemMapper::AllocateMemory(&(ppcRecompilerInstanceData->_x64XMM_xorNegateMaskBottom), sizeof(PPCRecompilerInstanceData_t) - offsetof(PPCRecompilerInstanceData_t, _x64XMM_xorNegateMaskBottom), MemMapper::PAGE_PERMISSION::P_RW, true);
+        if (!PPCRecompiler_reserveInstanceData())
+        {
+            cemuLog_log(LogType::Force, "Recompiler disabled: no address space for the jump table");
+            ppcRecompilerEnabled = false;
+            PPCCore_InitializePointer(false);
+            return;
+        }
 #ifdef ARCH_X86_64
         PPCRecompilerX64Gen_generateRecompilerInterfaceFunctions();
 #elif defined(__aarch64__)

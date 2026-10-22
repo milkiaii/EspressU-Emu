@@ -319,8 +319,8 @@ namespace snd_core
 		uint32 loopOffsetPtr = _swapEndianU32(*(uint32*)&internalShadowCopy->internalOffsets.loopOffsetPtrHigh);
 		uint32 ptrHighExtension = _swapEndianU16(internalShadowCopy->internalOffsets.ptrHighExtension);
 
-		uint8* endOffsetAddr = memory_base + (endOffsetPtr | (ptrHighExtension << 29));
-		uint8* currentOffsetAddr = memory_base + (currentOffsetPtr | (ptrHighExtension << 29));
+		uint8* endOffsetAddr = memory_translate(endOffsetPtr | (ptrHighExtension << 29));
+		uint8* currentOffsetAddr = memory_translate(currentOffsetPtr | (ptrHighExtension << 29));
 
 		sint16 historySamples[4];
 		historySamples[0] = _swapEndianS16(internalShadowCopy->src.historySamples[0]);
@@ -345,7 +345,7 @@ namespace snd_core
 					{
 						if (internalShadowCopy->internalOffsets.loopFlag)
 						{
-							currentOffsetAddr = memory_base + (loopOffsetPtr | (ptrHighExtension << 29));
+							currentOffsetAddr = memory_translate(loopOffsetPtr | (ptrHighExtension << 29));
 						}
 						else
 						{
@@ -379,7 +379,7 @@ namespace snd_core
 		internalShadowCopy->src.historySamples[1] = _swapEndianS16(historySamples[(historyIndex + 1) & 3]);
 		internalShadowCopy->src.historySamples[2] = _swapEndianS16(historySamples[(historyIndex + 2) & 3]);
 		internalShadowCopy->src.historySamples[3] = _swapEndianS16(historySamples[(historyIndex + 3) & 3]);
-		currentOffsetPtr = (uint32)((uint8*)currentOffsetAddr - memory_base);
+		currentOffsetPtr = memory_reverseTranslate(currentOffsetAddr);
 		currentOffsetPtr &= 0x1FFFFFFF;
 		*(uint32*)&internalShadowCopy->internalOffsets.currentOffsetPtrHigh = _swapEndianU32(currentOffsetPtr);
 	}
@@ -398,8 +398,8 @@ namespace snd_core
 		uint32 currentOffsetPtr = _swapEndianU32(*(uint32*)&internalShadowCopy->internalOffsets.currentOffsetPtrHigh);
 		uint32 ptrHighExtension = _swapEndianU16(internalShadowCopy->internalOffsets.ptrHighExtension);
 
-		uint8* endOffsetAddr = memory_base + (endOffsetPtr | (ptrHighExtension << 29));
-		uint8* currentOffsetAddr = memory_base + (currentOffsetPtr | (ptrHighExtension << 29));
+		uint8* endOffsetAddr = memory_translate(endOffsetPtr | (ptrHighExtension << 29));
+		uint8* currentOffsetAddr = memory_translate(currentOffsetPtr | (ptrHighExtension << 29));
 
 		sint16 historySamples[4];
 		historySamples[0] = _swapEndianS16(internalShadowCopy->src.historySamples[0]);
@@ -420,8 +420,8 @@ namespace snd_core
 		uint32 loopOffsetPtr = _swapEndianU32(*(uint32*)&internalShadowCopy->internalOffsets.loopOffsetPtrHigh);
 		uint32 ptrHighExtension = _swapEndianU16(internalShadowCopy->internalOffsets.ptrHighExtension);
 
-		uint16* endOffsetAddr = (uint16*)(memory_base + ((endOffsetPtr * 2) | (ptrHighExtension << 29)));
-		uint16* currentOffsetAddr = (uint16*)(memory_base + ((currentOffsetPtr * 2) | (ptrHighExtension << 29)));
+		uint16* endOffsetAddr = (uint16*)(memory_translate((endOffsetPtr * 2) | (ptrHighExtension << 29)));
+		uint16* currentOffsetAddr = (uint16*)(memory_translate((currentOffsetPtr * 2) | (ptrHighExtension << 29)));
 
 		sint16 historySamples[4];
 		historySamples[0] = _swapEndianS16(internalShadowCopy->src.historySamples[0]);
@@ -447,7 +447,7 @@ namespace snd_core
 					{
 						if (internalShadowCopy->internalOffsets.loopFlag)
 						{
-							currentOffsetAddr = (uint16*)(memory_base + ((loopOffsetPtr * 2) | (ptrHighExtension << 29)));
+							currentOffsetAddr = (uint16*)(memory_translate((loopOffsetPtr * 2) | (ptrHighExtension << 29)));
 						}
 						else
 						{
@@ -484,7 +484,7 @@ namespace snd_core
 		internalShadowCopy->src.historySamples[1] = _swapEndianS16(historySamples[(historyIndex + 1) & 3]);
 		internalShadowCopy->src.historySamples[2] = _swapEndianS16(historySamples[(historyIndex + 2) & 3]);
 		internalShadowCopy->src.historySamples[3] = _swapEndianS16(historySamples[(historyIndex + 3) & 3]);
-		currentOffsetPtr = (uint32)((uint8*)currentOffsetAddr - memory_base);
+		currentOffsetPtr = memory_reverseTranslate(currentOffsetAddr);
 		currentOffsetPtr &= 0x1FFFFFFF;
 		currentOffsetPtr >>= 1;
 		*(uint32*)&internalShadowCopy->internalOffsets.currentOffsetPtrHigh = _swapEndianU32(currentOffsetPtr);
@@ -505,8 +505,8 @@ namespace snd_core
 		uint32 loopOffsetPtr = _swapEndianU32(*(uint32*)&internalShadowCopy->internalOffsets.loopOffsetPtrHigh);
 		uint32 ptrHighExtension = _swapEndianU16(internalShadowCopy->internalOffsets.ptrHighExtension);
 
-		uint16* endOffsetAddr = (uint16*)(memory_base + (endOffsetPtr * 2 | (ptrHighExtension << 29)));
-		uint16* currentOffsetAddr = (uint16*)(memory_base + (currentOffsetPtr * 2 | (ptrHighExtension << 29)));
+		uint16* endOffsetAddr = (uint16*)(memory_translate(endOffsetPtr * 2 | (ptrHighExtension << 29)));
+		uint16* currentOffsetAddr = (uint16*)(memory_translate(currentOffsetPtr * 2 | (ptrHighExtension << 29)));
 
 		if (internalShadowCopy->playbackState == 0)
 		{
@@ -523,7 +523,7 @@ namespace snd_core
 			{
 				if (internalShadowCopy->internalOffsets.loopFlag)
 				{
-					currentOffsetAddr = (uint16*)(memory_base + (loopOffsetPtr * 2 | (ptrHighExtension << 29)));
+					currentOffsetAddr = (uint16*)(memory_translate(loopOffsetPtr * 2 | (ptrHighExtension << 29)));
 				}
 				else
 				{
@@ -538,7 +538,7 @@ namespace snd_core
 			else
 				currentOffsetAddr++;
 		}
-		currentOffsetPtr = (uint32)((uint8*)currentOffsetAddr - memory_base);
+		currentOffsetPtr = memory_reverseTranslate(currentOffsetAddr);
 		currentOffsetPtr &= 0x1FFFFFFF;
 		currentOffsetPtr >>= 1;
 

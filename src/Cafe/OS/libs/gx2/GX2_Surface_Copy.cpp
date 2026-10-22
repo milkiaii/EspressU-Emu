@@ -520,8 +520,8 @@ void gx2CopySurfaceTest()
 	bt.Start();
 	for(sint32 i=0; i<100; i++)
 		gx2SurfaceCopySoftware(
-			memory_base + 0x10000000, 256, 256, 1, 0, 0, 4,
-			memory_base + 0x20000000, 256, 256, 1, 0, 0, 4,
+			memory_translate(0x10000000), 256, 256, 1, 0, 0, 4,
+			memory_translate(0x20000000), 256, 256, 1, 0, 0, 4,
 			64, 64, 32
 		);
 	bt.Stop();
@@ -529,8 +529,8 @@ void gx2CopySurfaceTest()
 	bt.Start();
 	for (sint32 i = 0; i < 100; i++)
 		gx2SurfaceCopySoftware(
-			memory_base + 0x11000000, 256, 256, 1, 0, 0, 4,
-			memory_base + 0x21000000, 256, 256, 1, 0, 0, 2,
+			memory_translate(0x11000000), 256, 256, 1, 0, 0, 4,
+			memory_translate(0x21000000), 256, 256, 1, 0, 0, 2,
 			64, 64, 32
 		);
 	bt.Stop();
@@ -538,8 +538,8 @@ void gx2CopySurfaceTest()
 	bt.Start();
 	for (sint32 i = 0; i < 100; i++)
 		gx2SurfaceCopySoftware(
-			memory_base + 0x12000000, 256, 256, 1, 0, 0, 1,
-			memory_base + 0x22000000, 256, 256, 1, 0, 0, 4,
+			memory_translate(0x12000000), 256, 256, 1, 0, 0, 1,
+			memory_translate(0x22000000), 256, 256, 1, 0, 0, 4,
 			64, 64, 128
 		);
 	bt.Stop();
@@ -547,8 +547,8 @@ void gx2CopySurfaceTest()
 	bt.Start();
 	for (sint32 i = 0; i < 100; i++)
 		gx2SurfaceCopySoftware(
-			memory_base + 0x12000000, 256, 256, 1, 0, 0, 4,
-			memory_base + 0x22000000, 256, 256, 1, 0, 0, 4,
+			memory_translate(0x12000000), 256, 256, 1, 0, 0, 4,
+			memory_translate(0x22000000), 256, 256, 1, 0, 0, 4,
 			64, 512, 32
 		);
 	bt.Stop();

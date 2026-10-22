@@ -9,7 +9,7 @@ using MPTR = uint32;
 using VAddr = uint32;
 using PAddr = uint32;
 
-extern uint8* memory_base;
+#include "Cafe/HW/MMU/MMUTranslate.h"
 extern uint8* PPCInterpreterGetStackPointer();
 extern uint8* PPCInterpreter_PushAndReturnStackPointer(sint32 offset);
 extern void PPCInterpreterModifyStackPointer(sint32 offset);
@@ -40,7 +40,7 @@ class MEMPTR : MEMPTRBase
 			m_value = 0;
 		else
 		{
-			m_value = (uint32)((uintptr_t)ptr - (uintptr_t)memory_base);
+			m_value = memory_reverseTranslate((const void*)ptr);
 		}
 	}
 
@@ -66,8 +66,8 @@ class MEMPTR : MEMPTRBase
 			m_value = 0;
 		else
 		{
-			cemu_assert_debug((uint8*)ptr >= memory_base && (uint8*)ptr <= memory_base + 0x100000000);
-			m_value = (uint32)((uintptr_t)ptr - (uintptr_t)memory_base);
+			cemu_assert_debug(memory_isHostPtrInGuestSpace((const void*)ptr));
+			m_value = memory_reverseTranslate((const void*)ptr);
 		}
 		return *this;
 	}
@@ -142,7 +142,7 @@ class MEMPTR : MEMPTRBase
 
 	T* GetPtr() const noexcept
 	{
-		return (T*)(m_value == 0 ? nullptr : memory_base + (uint32)m_value);
+		return (T*)(m_value == 0 ? nullptr : memory_translate((uint32)m_value));
 	}
 
 	template<typename C>

@@ -1,6 +1,8 @@
 #pragma once
+#include "Cafe/HW/MMU/MMUTranslate.h"
 
 void memory_init();
+void memory_logFreeAddressSpace(const char* label);
 void memory_mapForCurrentTitle();
 void memory_unmapForCurrentTitle();
 
@@ -18,10 +20,12 @@ uint8* memory_getPointerFromVirtualOffsetAllowNull(uint32 virtualOffset);
 
 uint8* memory_getPointerFromPhysicalOffset(uint32 physicalOffset);
 
+// True if the guest range [address, address+size) is backed by reserved host memory and is contiguous on the host.
+// Always true in linear mode (the whole 4 GiB is reserved). In page-table mode only the guest ranges that were reserved qualify.
+bool memory_isGuestRangeReserved(uint32 address, uint32 size);
+
 uint32 memory_virtualToPhysical(uint32 virtualOffset);
 uint32 memory_physicalToVirtual(uint32 physicalOffset);
-
-extern uint8* memory_base;
 
 enum class MMU_MEM_AREA_ID
 {
@@ -62,7 +66,7 @@ struct MMURange
 	uint8* getPtr() const
 	{
 		cemu_assert_debug(m_isMapped);
-		return memory_base + baseAddress;
+		return memory_translate(baseAddress);
 	}
 
 	uint32 getBase() const
@@ -222,12 +226,12 @@ void memory_readBytes(VAddr address, std::array<uint8, count>& buffer)
 
 template <typename T> inline T memory_read(VAddr address)
 {
-	return *(betype<T>*)(memory_base + address);
+	return *(betype<T>*)memory_translate(address);
 }
 
 template <typename T> inline void memory_write(VAddr address, T value)
 {
-	*(betype<T>*)(memory_base + address) = value;
+	*(betype<T>*)memory_translate(address) = value;
 }
 
 void memory_initPhysicalLayout();
@@ -275,4 +279,4 @@ namespace MMU
 
 }
 
-#define MMU_IsInPPCMemorySpace(__ptr) ((const uint8*)(__ptr) >= memory_base && (const uint8*)(__ptr) < (memory_base + 0x100000000))
+#define MMU_IsInPPCMemorySpace(__ptr) memory_isHostPtrInGuestSpace((const void*)(__ptr))

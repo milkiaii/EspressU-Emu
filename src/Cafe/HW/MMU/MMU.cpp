@@ -4,6 +4,8 @@
 #include "WindowSystem.h"
 #include "util/MemMapper/MemMapper.h"
 #include "config/ActiveSettings.h"
+#include <algorithm>
+#include <vector>
 #if BOOST_OS_IOS
 #include "util/MemMapper/SparseReservation.h"
 #endif
@@ -36,8 +38,307 @@ static bool memory_reserveSparseRange(uintptr_t base, uint64_t offset, uint64_t 
 }
 #endif
 
+
+// ---------------------------------------------------------------------------------------------
+// Page-table mode (iOS only)
+//
+// Fallback for devices that cannot hand out the contiguous 4 GiB guest reservation. Only the guest ranges that exist are
+// reserved, and guest accesses go through g_memoryPageTable (see MMUTranslate.h) instead of memory_base + address.
+// ---------------------------------------------------------------------------------------------
+extern std::vector<MMURange*> g_mmuRanges; // defined further down
+
+uint8** g_memoryPageTable = nullptr;
+MMUTranslate::Arena g_memoryArenas[MMUTranslate::MAX_ARENAS];
+uint32 g_memoryArenaCount = 0;
+uint8* g_memoryFaultGranule = nullptr;
+
+#if CEMU_MMU_PAGETABLE_SUPPORTED
+static std::vector<uint8*> s_pageTableStorage; // forward table storage (one entry per guest page)
+static std::vector<std::vector<uint32>> s_pageTableReverse; // reverse table storage, one per arena
+
+namespace
+{
+	struct PageTableSegment
+	{
+		uint64 begin;
+		uint64 end;
+	};
+
+	// The guest ranges that need to be backed, rounded to host granules. Optional ranges (the 448 MiB overlay arena) are skipped:
+	// address space is the scarce resource on these devices. With mergeAdjacent, ranges that touch each other end up in one
+	// segment so that an access that straddles them still hits contiguous host memory.
+	std::vector<PageTableSegment> memory_computePageTableSegments(bool mergeAdjacent)
+	{
+		using namespace MMUTranslate;
+		std::vector<PageTableSegment> intervals;
+		auto addInterval = [&](uint64 begin, uint64 end)
+		{
+			begin &= ~(uint64)PAGE_MASK;
+			end = (end + PAGE_MASK) & ~(uint64)PAGE_MASK;
+			if (end > begin)
+				intervals.push_back({begin, end});
+		};
+		for (MMURange* range : g_mmuRanges)
+		{
+			if (range->isOptional())
+				continue;
+			addInterval(range->getBase(), (uint64)range->getBase() + range->getInitSize());
+		}
+		addInterval(0x00800000, 0x01000000); // HBL ELF code arena, see memory_enableHBLELFCodeArea()
+		std::sort(intervals.begin(), intervals.end(), [](const PageTableSegment& a, const PageTableSegment& b) { return a.begin < b.begin; });
+		std::vector<PageTableSegment> segments;
+		for (const auto& itr : intervals)
+		{
+			if (!segments.empty() && (mergeAdjacent ? itr.begin <= segments.back().end : itr.begin < segments.back().end))
+				segments.back().end = std::max(segments.back().end, itr.end);
+			else
+				segments.push_back(itr);
+		}
+		return segments;
+	}
+}
+
+static std::string memory_formatPageTableArenaLayout(const std::vector<std::vector<size_t>>& groups, const std::vector<PageTableSegment>& segments)
+{
+	std::string text;
+	for (const auto& group : groups)
+	{
+		uint64 total = 0;
+		for (size_t i : group)
+			total += (segments[i].end - segments[i].begin) + MMUTranslate::PAGE_SIZE;
+		text += fmt::format("{}x{}MiB ", group.size(), total >> 20);
+	}
+	return text;
+}
+
+// Reserves the host arenas for one grouping of segments and builds the tables. Returns false (and reserves nothing) if an arena cannot be reserved.
+static bool memory_tryBuildPageTable(const std::vector<PageTableSegment>& segments, std::vector<std::vector<size_t>> groups)
+{
+	using namespace MMUTranslate;
+	if (groups.size() > MAX_ARENAS)
+		return false;
+	auto groupSize = [&](const std::vector<size_t>& g)
+	{
+		size_t total = 0;
+		for (size_t i : g)
+			total += (size_t)(segments[i].end - segments[i].begin) + PAGE_SIZE; // segment + guard granule
+		return total;
+	};
+	// biggest arena first: it is the most likely to fail, and reverse lookups find the large arenas first
+	std::sort(groups.begin(), groups.end(), [&](const auto& a, const auto& b) { return groupSize(a) > groupSize(b); });
+
+	std::vector<uint8*> bases;
+	std::vector<size_t> sizes;
+	auto releaseAll = [&]()
+	{
+		for (size_t g = 0; g < bases.size(); g++)
+			MemMapper::FreeReservation(bases[g], sizes[g]);
+		bases.clear();
+		sizes.clear();
+	};
+	for (size_t g = 0; g < groups.size(); g++)
+	{
+		const size_t arenaSize = groupSize(groups[g]);
+		uint8* base = (uint8*)MemMapper::ReserveMemory(nullptr, arenaSize, MemMapper::PAGE_PERMISSION::P_NONE);
+		if (!base)
+		{
+			cemuLog_log(LogType::Force, "Page-table mode: unable to reserve a {} MiB arena (layout {})", arenaSize >> 20, memory_formatPageTableArenaLayout(groups, segments));
+			releaseAll();
+			return false;
+		}
+		bases.push_back(base);
+		sizes.push_back(arenaSize);
+	}
+	uint8* faultGranule = (uint8*)MemMapper::ReserveMemory(nullptr, PAGE_SIZE, MemMapper::PAGE_PERMISSION::P_NONE);
+	if (!faultGranule)
+	{
+		cemuLog_log(LogType::Force, "Page-table mode: unable to reserve the {} KiB fault granule", PAGE_SIZE >> 10);
+		releaseAll();
+		return false;
+	}
+
+	s_pageTableStorage.assign(NUM_PAGES, faultGranule); // every guest page that is not backed faults
+	s_pageTableReverse.clear();
+	s_pageTableReverse.reserve(MAX_ARENAS); // later arenas (optional ranges) must not move the existing reverse tables
+	s_pageTableReverse.assign(groups.size(), {});
+	for (size_t g = 0; g < groups.size(); g++)
+	{
+		s_pageTableReverse[g].assign(sizes[g] >> PAGE_SHIFT, REVERSE_UNMAPPED);
+		std::vector<size_t> members = groups[g];
+		std::sort(members.begin(), members.end()); // keep guest order inside an arena
+		size_t hostOffset = 0;
+		for (size_t segIndex : members)
+		{
+			const PageTableSegment& seg = segments[segIndex];
+			const uint32 firstPage = (uint32)(seg.begin >> PAGE_SHIFT);
+			const uint32 pageCount = (uint32)((seg.end - seg.begin) >> PAGE_SHIFT);
+			const size_t hostPage = hostOffset >> PAGE_SHIFT;
+			for (uint32 p = 0; p < pageCount; p++)
+			{
+				s_pageTableStorage[firstPage + p] = bases[g] + hostOffset + ((size_t)p << PAGE_SHIFT);
+				s_pageTableReverse[g][hostPage + p] = firstPage + p;
+			}
+			// guard granule: maps back to the guest page right behind the segment (wraps to 0 for a segment that ends at 4 GiB)
+			s_pageTableReverse[g][hostPage + pageCount] = (uint32)(seg.end >> PAGE_SHIFT);
+			hostOffset += (size_t)(seg.end - seg.begin) + PAGE_SIZE;
+		}
+		g_memoryArenas[g] = {bases[g], sizes[g], s_pageTableReverse[g].data()};
+	}
+	size_t totalSize = 0;
+	for (size_t sz : sizes)
+		totalSize += sz;
+	g_memoryFaultGranule = faultGranule;
+	g_memoryArenaCount = (uint32)groups.size();
+	memory_base = (uint8*)POISON_BASE;
+	g_memoryPageTable = s_pageTableStorage.data(); // enables page-table mode, keep last
+	cemuLog_log(LogType::Force, "Guest memory mode: page-table ({} segments in {} arena(s), {} MiB reserved, first arena at {:#x}; layout {})",
+		segments.size(), groups.size(), totalSize >> 20, (uintptr_t)bases[0], memory_formatPageTableArenaLayout(groups, segments));
+	return true;
+}
+
+static bool memory_buildPageTable()
+{
+	using namespace MMUTranslate;
+	if (MemMapper::GetPageSize() > PAGE_SIZE)
+	{
+		cemuLog_log(LogType::Force, "Page-table mode: host page size {} is larger than the {} byte guest page granule", MemMapper::GetPageSize(), PAGE_SIZE);
+		return false;
+	}
+	// First choice keeps touching guest ranges contiguous on the host. If no layout can be reserved, the last resort only merges
+	// ranges that overlap: a guest access that straddles two touching ranges would then fault, but the emulator can start.
+	for (int pass = 0; pass < 2; pass++)
+	{
+		const bool mergeAdjacent = (pass == 0);
+		const std::vector<PageTableSegment> segments = memory_computePageTableSegments(mergeAdjacent);
+		if (!mergeAdjacent)
+			cemuLog_log(LogType::Force, "Page-table mode: retrying with adjacent guest ranges in separate host blocks (accesses straddling two ranges will fault)");
+		std::vector<size_t> order(segments.size()); // segment indices, biggest first
+		for (size_t i = 0; i < order.size(); i++)
+			order[i] = i;
+		std::sort(order.begin(), order.end(), [&](size_t a, size_t b) { return (segments[a].end - segments[a].begin) > (segments[b].end - segments[b].begin); });
+
+		// 1) one arena, 2) the biggest segment alone and the rest together, 3) every segment in its own arena
+		std::vector<std::vector<std::vector<size_t>>> layouts;
+		layouts.push_back({order});
+		if (order.size() > 1)
+			layouts.push_back({std::vector<size_t>(order.begin() + 1, order.end()), {order[0]}});
+		{
+			std::vector<std::vector<size_t>> perSegment;
+			for (size_t i : order)
+				perSegment.push_back({i});
+			layouts.push_back(std::move(perSegment));
+		}
+		for (auto& layout : layouts)
+		{
+			if (memory_tryBuildPageTable(segments, layout))
+				return true;
+		}
+	}
+	return false;
+}
+
+bool memory_isGuestRangeReserved(uint32 address, uint32 size)
+{
+	if (!memory_isPageTableMode())
+		return true;
+	using namespace MMUTranslate;
+	if (size == 0)
+		return true;
+	const uint64 beginPage = address >> PAGE_SHIFT;
+	const uint64 endPage = (((uint64)address + size - 1) >> PAGE_SHIFT) + 1;
+	if (endPage > NUM_PAGES)
+		return false;
+	uint8* previous = nullptr;
+	for (uint64 p = beginPage; p < endPage; p++)
+	{
+		uint8* host = g_memoryPageTable[p];
+		if (host == g_memoryFaultGranule)
+			return false; // not backed
+		if (previous && host != previous + PAGE_SIZE)
+			return false; // not contiguous on the host
+		previous = host;
+	}
+	return true;
+}
+
+// Backs an optional guest range (the overlay arena) that was left out of the initial page table. Reserves one more host block
+// (range + guard granule), points the page table at it and adds it to the reverse lookup. The block stays reserved for the rest of
+// the process, so later titles reuse it. Called when a title asks for the range, so titles that don't need it pay nothing.
+static bool memory_attachOptionalRangePageTable(uint32 guestBase, uint32 guestSize)
+{
+	using namespace MMUTranslate;
+	if ((guestBase & PAGE_MASK) != 0 || (guestSize & PAGE_MASK) != 0 || g_memoryArenaCount >= MAX_ARENAS)
+		return false;
+	const uint32 firstPage = guestBase >> PAGE_SHIFT;
+	const uint32 pageCount = guestSize >> PAGE_SHIFT;
+	for (uint32 p = 0; p < pageCount; p++)
+	{
+		if (s_pageTableStorage[firstPage + p] != g_memoryFaultGranule)
+			return false; // overlaps memory that is already backed
+	}
+	const size_t arenaSize = (size_t)guestSize + PAGE_SIZE; // range + guard granule
+	memory_logFreeAddressSpace("before reserving an optional guest range");
+	uint8* base = (uint8*)MemMapper::ReserveMemory(nullptr, arenaSize, MemMapper::PAGE_PERMISSION::P_NONE);
+	if (!base)
+	{
+		cemuLog_log(LogType::Force, "Page-table mode: unable to reserve {} MiB for the guest range {:08x}-{:08x}", arenaSize >> 20, guestBase, (uint64)guestBase + guestSize);
+		memory_logFreeAddressSpace("after the failed reservation");
+		return false;
+	}
+	// reverse table first, then the forward table, then publish the arena
+	const uint32 arenaIndex = g_memoryArenaCount;
+	s_pageTableReverse.emplace_back(arenaSize >> PAGE_SHIFT, REVERSE_UNMAPPED); // outer vector has reserved capacity, inner buffers never move
+	std::vector<uint32>& reverse = s_pageTableReverse.back();
+	for (uint32 p = 0; p < pageCount; p++)
+		reverse[p] = firstPage + p;
+	reverse[pageCount] = (guestBase + guestSize) >> PAGE_SHIFT; // guard granule maps to the page behind the range
+	for (uint32 p = 0; p < pageCount; p++)
+		s_pageTableStorage[firstPage + p] = base + ((size_t)p << PAGE_SHIFT);
+	g_memoryArenas[arenaIndex] = {base, arenaSize, reverse.data()};
+	g_memoryArenaCount = arenaIndex + 1;
+	cemuLog_log(LogType::Force, "Page-table mode: backed guest range {:08x}-{:08x} with a {} MiB host block at {:#x}", guestBase, (uint64)guestBase + guestSize, arenaSize >> 20, (uintptr_t)base);
+	memory_logFreeAddressSpace("after reserving an optional guest range");
+	return true;
+}
+#else
+bool memory_isGuestRangeReserved(uint32, uint32)
+{
+	return true;
+}
+#endif
+
+// Logs how much address space this process can still reserve (largest free block, total reservable)
+void memory_logFreeAddressSpace(const char* label)
+{
+#if BOOST_OS_IOS
+	const MemMapper::FreeAddressSpaceInfo info = MemMapper::ProbeFreeAddressSpace();
+	std::string blocks;
+	for (const auto& block : info.blocks)
+		blocks += fmt::format("{}x{}MiB ", block.second, block.first >> 20);
+	cemuLog_log(LogType::Force, "Address space ({}): largest free block {} MiB, total reservable {} MiB (probe capped at 8 GiB) [{}]", label, info.largestBlockBytes >> 20, info.totalBytes >> 20, blocks);
+#else
+	(void)label;
+#endif
+}
+
 static void* memory_commitRange(uint32 offset, uint32 size)
 {
+#if CEMU_MMU_PAGETABLE_SUPPORTED
+	if (memory_isPageTableMode())
+	{
+		using namespace MMUTranslate;
+		const uint64 begin = offset & ~(uint64)PAGE_MASK;
+		const uint64 end = ((uint64)offset + size + PAGE_MASK) & ~(uint64)PAGE_MASK;
+		if (!memory_isGuestRangeReserved((uint32)begin, (uint32)(end - begin)))
+		{
+			cemuLog_log(LogType::Force, "Page-table mode: guest range {:08x}-{:08x} is not backed by reserved host memory", offset, (uint64)offset + size);
+			return nullptr;
+		}
+		if (!MemMapper::AllocateMemory(memory_translate((uint32)begin), (size_t)(end - begin), MemMapper::PAGE_PERMISSION::P_RW, true))
+			return nullptr;
+		return memory_translate(offset);
+	}
+#endif
 #if BOOST_OS_IOS
 	if (s_usingSparseReservation && !memory_reserveSparseRange(reinterpret_cast<uintptr_t>(memory_base), offset, size))
 	{
@@ -134,16 +435,26 @@ size_t memory_getKeptRangeCount()
 
 void MMURange::unmapMem()
 {
+	// page-table mode works on whole host granules, linear mode keeps passing the exact size
+	uint8* hostPtr = memory_translate(baseAddress);
+	size_t hostSize = size;
+	if (memory_isPageTableMode())
+	{
+		const uint64 begin = baseAddress & ~(uint64)MMUTranslate::PAGE_MASK;
+		const uint64 end = ((uint64)baseAddress + size + MMUTranslate::PAGE_MASK) & ~(uint64)MMUTranslate::PAGE_MASK;
+		hostPtr = memory_translate((uint32)begin);
+		hostSize = (size_t)(end - begin);
+	}
 	if (memory_isRangeGpuMapped(baseAddress, size))
 	{
-		MemMapper::FreeMemoryKeepPages(memory_base + baseAddress, size);
+		MemMapper::FreeMemoryKeepPages(hostPtr, hostSize);
 		s_keptRangeCount++;
 		cemuLog_log(LogType::Force, "clean slate: kept {} pages (GPU mapping still alive)", name);
 	}
 	else
 	{
 		const auto start = std::chrono::steady_clock::now();
-		MemMapper::FreeMemory(memory_base + baseAddress, size, true);
+		MemMapper::FreeMemory(hostPtr, hostSize, true);
 		const auto us = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
 		cemuLog_log(LogType::Force, "Guest memory: replaced {} ({} MiB) with fresh pages in {}.{} ms", name, size / (1024 * 1024), us / 1000, (us % 1000) / 100);
 	}
@@ -169,8 +480,13 @@ MMURange mmuRange_HIGHMEM				{ 0xFFFFF000, 0x00001000, MMU_MEM_AREA_ID::CPU_PER_
 
 void memory_init()
 {
+	memory_logFreeAddressSpace("before guest memory reservation");
 	if (!memory_base)
+	{
 		memory_base = (uint8*)MemMapper::ReserveMemory(nullptr, size_t{0x100000000ULL}, MemMapper::PAGE_PERMISSION::P_RW);
+		if (memory_base)
+			cemuLog_log(LogType::Force, "Guest memory mode: linear (4 GiB reservation at {:#x})", (uintptr_t)memory_base);
+	}
 #if BOOST_OS_IOS
 	if (!memory_base)
 	{
@@ -195,6 +511,7 @@ void memory_init()
 				memory_base = reinterpret_cast<uint8*>(base);
 				s_usingSparseReservation = true;
 				cemuLog_log(LogType::Force, "Using sparse iOS guest memory reservations");
+				cemuLog_log(LogType::Force, "Guest memory mode: linear, sparse reservations at {:#x}", (uintptr_t)memory_base);
 				break;
 			}
 			s_sparseReservation.ReleaseAll(base, memory_releaseSparseRange);
@@ -203,13 +520,23 @@ void memory_init()
 			cemuLog_log(LogType::Force, "Sparse guest reservation failed: last host address {:#x}, size {:#x}", s_failedSparseAddress, s_failedSparseSize);
 	}
 #endif
+#if CEMU_MMU_PAGETABLE_SUPPORTED
+	if (!memory_base)
+	{
+		// neither the contiguous 4 GiB reservation nor the sparse one worked: back only the guest ranges that exist and translate through a page table
+		cemuLog_log(LogType::Force, "Guest memory: the 4 GiB reservation failed, falling back to page-table mode");
+		memory_buildPageTable();
+	}
+#endif
 	if( !memory_base )
 	{
+		memory_logFreeAddressSpace("guest memory reservation failed");
 		debug_printf("memory_init(): Unable to reserve guest memory regions\n");
 		debugBreakpoint();
 		WindowSystem::ShowErrorDialog(_tr("Unable to reserve guest memory regions"), _tr("Error"));
 		exit(-1);
 	}
+	memory_logFreeAddressSpace("after guest memory reservation");
 	for (auto& itr : g_mmuRanges)
 	{
 		if (itr->isMappedEarly())
@@ -258,6 +585,11 @@ void memory_mapForCurrentTitle()
 		}
 		if(isOverlapping)
 			continue;
+		if (!memory_isGuestRangeReserved(mapping.first, mapping.second - mapping.first))
+		{
+			cemuLog_log(LogType::Force, fmt::format("Graphic pack: Unable to apply modified RAM mapping {:08x}-{:08x} in page-table mode (range exceeds the reserved guest memory)", mapping.first, mapping.second));
+			continue;
+		}
 		mmuRange->setEnd(mapping.second);
 	}
 
@@ -309,6 +641,17 @@ void memory_enableOverlayArena()
 {
 	if (mmuRange_OVERLAY_AREA.isMapped())
 		return;
+	if (!memory_isGuestRangeReserved(mmuRange_OVERLAY_AREA.getBase(), mmuRange_OVERLAY_AREA.getSize()))
+	{
+		// page-table mode leaves the optional overlay range out of the initial layout; back it now that a title asks for it
+#if CEMU_MMU_PAGETABLE_SUPPORTED
+		if (!memory_attachOptionalRangePageTable(mmuRange_OVERLAY_AREA.getBase(), mmuRange_OVERLAY_AREA.getSize()))
+#endif
+		{
+			cemuLog_log(LogType::Force, "Overlay arena is not available in page-table mode (could not reserve host memory for it)");
+			return;
+		}
+	}
 	mmuRange_OVERLAY_AREA.mapMem();
 }
 
@@ -351,19 +694,19 @@ uint32 memory_physicalToVirtual(uint32 physicalOffset)
 
 uint8* memory_getPointerFromPhysicalOffset(uint32 physicalOffset)
 {
-	return memory_base + physicalOffset;
+	return memory_translate(physicalOffset);
 }
 
 uint32 memory_getVirtualOffsetFromPointer(void* ptr)
 {
 	if( !ptr )
 		return MPTR_NULL;
-	return (uint32)((uint8*)ptr - (uint8*)memory_base);
+	return memory_reverseTranslate(ptr);
 }
 
 uint8* memory_getPointerFromVirtualOffset(uint32 virtualOffset)
 {
-	return memory_base + virtualOffset;
+	return memory_translate(virtualOffset);
 }
 
 uint8* memory_getPointerFromVirtualOffsetAllowNull(uint32 virtualOffset)
@@ -480,7 +823,7 @@ void memory_writeDumpFile(uint32 startAddr, uint32 size, const fs::path& path)
 	FileStream* fs = FileStream::createFile2(filePath);
 	if (fs)
 	{
-		fs->writeData(memory_base + startAddr, size);
+		fs->writeData(memory_translate(startAddr), size);
 		delete fs;
 	}
 }

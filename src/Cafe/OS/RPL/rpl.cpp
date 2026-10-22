@@ -878,7 +878,7 @@ bool RPLLoader_FixImportSymbols(RPLModule* rplLoaderContext, sint32 symtabSectio
 			}
 			if (symbolOffset < 8)
 			{
-				cemu_assert(symbolSectionAddress >= memory_base && symbolSectionAddress <= (memory_base + 0x100000000ULL));
+				cemu_assert(memory_isHostPtrInGuestSpace(symbolSectionAddress));
 				uint32 symbolSectionMPTR = memory_getVirtualOffsetFromPointer(symbolSectionAddress);
 				uint32 symbolRelativeAddress = (uint32)sym->symbolAddress - (uint32)symbolSection.virtualAddress;
 
@@ -980,7 +980,7 @@ bool RPLLoader_FixImportSymbols(RPLModule* rplLoaderContext, sint32 symtabSectio
 				((uint32)symbolSection.type == SHT_RPL_IMPORTS && linkMode != 1 && linkMode != 2)
 				)
 			{
-				cemu_assert(symbolSectionAddress >= memory_base && symbolSectionAddress <= (memory_base + 0x100000000ULL));
+				cemu_assert(memory_isHostPtrInGuestSpace(symbolSectionAddress));
 				uint32 symbolSectionMPTR = memory_getVirtualOffsetFromPointer(symbolSectionAddress);
 				uint32 symbolRelativeAddress = (uint32)sym->symbolAddress - (uint32)symbolSection.virtualAddress;
 				sym->symbolAddress = (symbolSectionMPTR + symbolRelativeAddress);

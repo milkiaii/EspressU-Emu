@@ -112,6 +112,12 @@ namespace coreinit
 			cemuLog_log(LogType::APIErrors, "OSMapMemory: Virtual address out of bounds\n");
 			return 0;
 		}
+		if (!memory_isGuestRangeReserved(virtualAddress, size))
+		{
+			// page-table mode only backs the guest ranges that were reserved at startup, this virtual range is not one of them
+			cemuLog_log(LogType::Force, "OSMapMemory: guest range {:08x}-{:08x} is not backed by host memory in page-table mode", virtualAddress, (uint64)virtualAddress + size);
+			return 0;
+		}
 
 		uint8* virtualPtr = memory_getPointerFromVirtualOffset(virtualAddress);
 
@@ -137,6 +143,8 @@ namespace coreinit
 			cemu_assert_suspicious();
 
 		cemu_assert((size % MemMapper::GetPageSize()) == 0);
+		if (!memory_isGuestRangeReserved(virtualAddress, size))
+			return 0; // never mapped in page-table mode, see OSMapMemory
 
 		uint8* virtualPtr = memory_getPointerFromVirtualOffset(virtualAddress);
 

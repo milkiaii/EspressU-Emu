@@ -2,6 +2,7 @@
 
 #include <unistd.h>
 #include <sys/mman.h>
+#include <algorithm>
 
 #if BOOST_OS_MACOS || BOOST_OS_IOS
 #include <mach/mach.h>
@@ -224,5 +225,38 @@ void FreeMemory(void* baseAddr, size_t size, bool fromReservation)
 	}
 
 #endif
+
+
+	FreeAddressSpaceInfo ProbeFreeAddressSpace(size_t capBytes)
+	{
+		// Greedily reserve the biggest blocks that are still available, then give everything back.
+		FreeAddressSpaceInfo info;
+		struct Block
+		{
+			void* ptr;
+			size_t size;
+		};
+		std::vector<Block> held;
+		constexpr size_t MiB = 1024 * 1024;
+		for (size_t size = 4096 * MiB; size >= 32 * MiB && info.totalBytes < capBytes; size /= 2)
+		{
+			while (info.totalBytes < capBytes)
+			{
+				void* p = ReserveMemory(nullptr, size, PAGE_PERMISSION::P_NONE);
+				if (!p)
+					break;
+				held.push_back({p, size});
+				info.totalBytes += size;
+				info.largestBlockBytes = std::max(info.largestBlockBytes, size);
+				if (!info.blocks.empty() && info.blocks.back().first == size)
+					info.blocks.back().second++;
+				else
+					info.blocks.emplace_back(size, 1);
+			}
+		}
+		for (const auto& block : held)
+			FreeReservation(block.ptr, block.size);
+		return info;
+	}
 
 }

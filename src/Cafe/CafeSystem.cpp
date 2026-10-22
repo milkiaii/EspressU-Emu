@@ -583,7 +583,10 @@ namespace CafeSystem
 		cemuLog_log(LogType::Force, "------- Init {} -------", BUILD_VERSION_WITH_NAME_STRING);
 		fsc_init();
 		memory_init();
-		cemuLog_log(LogType::Force, "Init Wii U memory space (base: 0x{:016x})", (size_t)memory_base);
+		if (memory_isPageTableMode())
+			cemuLog_log(LogType::Force, "Init Wii U memory space (page-table mode, table: 0x{:016x})", (size_t)g_memoryPageTable);
+		else
+			cemuLog_log(LogType::Force, "Init Wii U memory space (base: 0x{:016x})", (size_t)memory_base);
 		PPCCore_init();
 		RPLLoader_InitState();
 		cemuLog_log(LogType::Force, "mlc01 path: {}", _pathToUtf8(ActiveSettings::GetMlcPath()));
