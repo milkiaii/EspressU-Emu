@@ -494,6 +494,9 @@ void cemu_bridge_set_stick_axis(CemuBridgeStick stick, float x, float y);
 
 const char* cemu_bridge_memory_headroom_summary(void);
 
+// "JIT code cache" setting in MB (0 = automatic). Read when a game starts.
+int cemu_bridge_jit_arena_limit_mb(void);
+
 int cemu_bridge_input_button_mapping_count(void);
 
 const char* cemu_bridge_input_profile_name(void);

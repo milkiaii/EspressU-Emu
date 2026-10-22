@@ -53,6 +53,11 @@ extension EspressUSettingsView {
                                               cemu_bridge_set_cpu_core_mode((CoreMode(rawValue: raw) ?? CoreMode.defaultValue).bridgeValue)
                                           })),
                          enabled: multicore),
+            SettingsItem(id: "cpu.jitCache", title: "JIT code cache",
+                         detail: "64 MB frees address space, which heavy games such as Splatoon can run out of. Busy scenes may be a little slower. Applies the next time you start a game.",
+                         control: .choice([SettingsOption(id: "0", title: "Auto"),
+                                           SettingsOption(id: "64", title: "64 MB")],
+                                          values.intChoice("espressu.jit.arenaLimitMB", 0))),
             SettingsItem(id: "cpu.mode", title: "Running on", detail: String(cString: cemu_bridge_cpu_mode_detail()),
                          control: .info(Self.cpuModeTitle, nil)),
             SettingsItem(id: "cpu.memory", title: "Memory", detail: String(cString: cemu_bridge_memory_headroom_summary()),
