@@ -13,8 +13,8 @@ import Combine
 final class PadDiagnostics: ObservableObject {
     static let shared = PadDiagnostics()
 
-    static let enabledKey = "espressu.diagnostics.padOverlay"
-    static let defaultEnabled = false
+    nonisolated static let enabledKey = "espressu.diagnostics.padOverlay"
+    nonisolated static let defaultEnabled = false
 
     enum ActivePad: String {
         case none = "none mounted"
@@ -122,7 +122,7 @@ struct PadDiagnosticsOverlay: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: 240, alignment: .leading)
             } else if buttonBindings == 0 {
-                Text("The GamePad has no button bindings, so presses go nowhere while sticks still work. Settings > On-screen Controls > Reset controller bindings.")
+                Text("The GamePad has no button bindings, so presses go nowhere while sticks still work. Settings > Controls > Controller buttons > Reset controller bindings.")
                     .font(.system(size: 10, weight: .semibold, design: .rounded))
                     .foregroundColor(.yellow)
                     .fixedSize(horizontal: false, vertical: true)

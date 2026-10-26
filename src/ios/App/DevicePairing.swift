@@ -27,12 +27,23 @@ final class DevicePairing: NSObject, ObservableObject {
 
     static let hostName = "EspressU"
 
+    /// The built-in pairing (EspressU showing up in Developer Mode settings) needs this iOS version or newer.
+    static let minimumIOSVersion = 27
+
+    static var isSupported: Bool {
+        ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= minimumIOSVersion
+    }
+
     private var host: DevicePairingHost?
     private var service: NetService?
     private let keepAlive = SilentAudioKeepAlive()
 
     func start() {
         guard !isActive else { return }
+        guard Self.isSupported else {
+            state = .failed("Built-in pairing needs iOS \(Self.minimumIOSVersion) or newer. Import a pairing file instead.")
+            return
+        }
         StikJITSetup.ensureDirectory()
         var problem: NSString?
         guard let host = DevicePairingHost(name: Self.hostName, failure: &problem) else {
@@ -53,14 +64,19 @@ final class DevicePairing: NSObject, ObservableObject {
         service.publish()
         self.service = service
 
+        let hostID = ObjectIdentifier(host)
         host.run(pin: { [weak self] pin in
-            guard let self, self.host === host else { return }
-            self.state = .pin(pin)
-            self.log("device asked for the PIN")
-            Self.notify(title: "EspressU pairing", body: "Enter this PIN in Settings: \(pin)")
+            Task { @MainActor [weak self] in
+                guard let self, self.host.map(ObjectIdentifier.init) == hostID else { return }
+                self.state = .pin(pin)
+                self.log("device asked for the PIN")
+                Self.notify(title: "EspressU pairing", body: "Enter this PIN in Settings: \(pin)")
+            }
         }, completion: { [weak self] file, deviceName, failure, cancelled in
-            guard let self, self.host === host else { return }
-            self.finish(file: file, deviceName: deviceName, failure: failure, cancelled: cancelled)
+            Task { @MainActor [weak self] in
+                guard let self, self.host.map(ObjectIdentifier.init) == hostID else { return }
+                self.finish(file: file, deviceName: deviceName, failure: failure, cancelled: cancelled)
+            }
         })
     }
 

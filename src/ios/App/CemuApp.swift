@@ -14,6 +14,7 @@ struct CemuApp: App {
         JITSettings.migrate()
         RemovedSettingsCleanup.run()
         MotionSettings.startObservingControllers()
+        PadMapping.pushToBridge()
 
         let info = Bundle.main.infoDictionary ?? [:]
         let version = info["CFBundleShortVersionString"] as? String ?? "?"
@@ -43,11 +44,14 @@ struct CemuApp: App {
                 .id(themeStore.current.id)
                 .preferredColorScheme(appearanceMode == "light" ? .light : (appearanceMode == "dark" ? .dark : nil))
                 .espressuScrollEdgeBlurHidden()
-                .onChange(of: scenePhase) { phase in
+                .onValueChange(of: scenePhase) { phase in
                     if phase != .active {
                         ControllerCustomLayout.shared.flushPending()
                         UserDefaults.standard.synchronize()
                     }
+                }
+                .onValueChange(of: scenePhase) { phase in
+                    if phase == .background { PipelineCacheFlusher.flushForBackground() }
                 }
                 .onAppear {
                     cemu_bridge_log_checkpoint("ContentView.onAppear reached")
@@ -70,5 +74,43 @@ extension View {
         #else
         self
         #endif
+    }
+}
+
+/// iOS kills backgrounded apps without notice, so shaders compiled since the last periodic save would be lost.
+/// The save runs on a utility queue under a background task so it can finish after the app has left the screen.
+enum PipelineCacheFlusher {
+    private final class TaskBox { var id = UIBackgroundTaskIdentifier.invalid }
+
+    static func flushForBackground() {
+        let box = TaskBox()
+        box.id = UIApplication.shared.beginBackgroundTask(withName: "FlushPipelineCache") {
+            if box.id != .invalid {
+                UIApplication.shared.endBackgroundTask(box.id)
+                box.id = .invalid
+            }
+        }
+        DispatchQueue.global(qos: .utility).async {
+            cemu_bridge_flush_pipeline_cache()
+            DispatchQueue.main.async {
+                if box.id != .invalid {
+                    UIApplication.shared.endBackgroundTask(box.id)
+                    box.id = .invalid
+                }
+            }
+        }
+    }
+}
+
+// Keep the one-value callback available on iOS 15/16 while using the current API on newer systems.
+extension View {
+    @ViewBuilder
+    func onValueChange<Value: Equatable>(of value: Value,
+                                        perform action: @escaping (Value) -> Void) -> some View {
+        if #available(iOS 17.0, *) {
+            onChange(of: value) { _, newValue in action(newValue) }
+        } else {
+            onChange(of: value, perform: action)
+        }
     }
 }

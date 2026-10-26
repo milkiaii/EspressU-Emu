@@ -262,13 +262,13 @@ private struct PreviewDpadView: View {
             )
             .allowsHitTesting(isInteractive)
             .position(centre)
-            .onChange(of: touching) { down in
+            .onValueChange(of: touching) { down in
                 if !down { releaseAll() }
             }
-            .onChange(of: held) { now in
+            .onValueChange(of: held) { now in
                 if !now.isEmpty && !touching { releaseAll() }
             }
-            .onChange(of: isInteractive) { active in
+            .onValueChange(of: isInteractive) { active in
                 if !active { releaseAll() }
             }
             .onDisappear { releaseAll() }
@@ -317,7 +317,7 @@ private struct PreviewStickView: View {
                 .onChanged { value in
                     let dx = value.location.x - radius, dy = value.location.y - radius
                     let distance = (dx * dx + dy * dy).squareRoot()
-                    let reach = travel * ControllerGeometry.StickGate.octagon.radiusFraction(atAngle: atan2(dy, dx))
+                    let reach = travel * ControllerGeometry.StickGate.round.radiusFraction(atAngle: atan2(dy, dx))
                     let scale = distance > reach ? reach / distance : 1
                     knobOffset = CGSize(width: dx * scale, height: dy * scale)
                     let deflection = travel > 0 ? min(distance, reach) / travel : 0
@@ -332,13 +332,13 @@ private struct PreviewStickView: View {
         )
         .allowsHitTesting(isInteractive)
         .position(centre)
-        .onChange(of: touching) { down in
+        .onValueChange(of: touching) { down in
             if !down { recentre() }
         }
-        .onChange(of: knobOffset) { offset in
+        .onValueChange(of: knobOffset) { offset in
             if offset != .zero && !touching { recentre() }
         }
-        .onChange(of: isInteractive) { active in
+        .onValueChange(of: isInteractive) { active in
             if !active { recentre() }
         }
         .onDisappear {

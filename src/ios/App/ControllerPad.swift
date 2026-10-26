@@ -172,8 +172,8 @@ struct OptimizedControlPanel: View {
         }
         .onDisappear { cemu_bridge_release_all_buttons() }
         .allowsHitTesting(!isPaused)
-        .onChange(of: joystickMode) { _ in cemu_bridge_release_all_buttons() }
-        .onChange(of: comfortControls) { _ in cemu_bridge_release_all_buttons() }
+        .onValueChange(of: joystickMode) { _ in cemu_bridge_release_all_buttons() }
+        .onValueChange(of: comfortControls) { _ in cemu_bridge_release_all_buttons() }
     }
 }
 
@@ -518,10 +518,10 @@ struct HeldControl<Content: View>: View {
                         release()
                     }
             )
-            .onChange(of: isPressed) { pressed in
+            .onValueChange(of: isPressed) { pressed in
                 if !pressed { release() }
             }
-            .onChange(of: downSent) { sent in
+            .onValueChange(of: downSent) { sent in
                 if sent && !isPressed { release() }
             }
             .allowsHitTesting(isInteractive)
@@ -603,20 +603,6 @@ private struct StickGateShape: InsettableShape {
         case .round:
             return Circle().path(in: CGRect(x: rect.midX - radius, y: rect.midY - radius,
                                             width: radius * 2, height: radius * 2))
-        case .octagon:
-            var path = Path()
-            for corner in 0..<8 {
-                let angle = CGFloat(corner) * .pi / 4
-                let point = CGPoint(x: rect.midX + cos(angle) * radius,
-                                    y: rect.midY + sin(angle) * radius)
-                if corner == 0 {
-                    path.move(to: point)
-                } else {
-                    path.addLine(to: point)
-                }
-            }
-            path.closeSubpath()
-            return path
         }
     }
 
@@ -701,13 +687,13 @@ private struct JoystickControl: View {
                 .onEnded { _ in recentre() }
         )
         .allowsHitTesting(isInteractive)
-        .onChange(of: touching) { down in
+        .onValueChange(of: touching) { down in
             if !down { recentre() }
         }
-        .onChange(of: knobOffset) { offset in
+        .onValueChange(of: knobOffset) { offset in
             if offset != .zero && !touching { recentre() }
         }
-        .onChange(of: isInteractive) { active in
+        .onValueChange(of: isInteractive) { active in
             if !active { recentre() }
         }
         .onDisappear { recentre() }

@@ -67,9 +67,86 @@ extension EspressUSettingsView {
                          control: .custom(AnyView(HeatStatusBadge()))),
         ]
 
+        let speed: [SettingsItem] = [
+            SettingsItem(id: "cpu.accuracy", title: "Favour accuracy",
+                         detail: "Slower but more accurate: one CPU core and stricter GPU syncing. Can fix a game that glitches or crashes.",
+                         control: .toggle(values.bool("espressu.cpu.favourAccuracy", false) { on in
+                             cemu_bridge_set_favour_accuracy(on)
+                             if on {
+                                 UserDefaults.standard.set(false, forKey: FavourPerformance.storageKey)
+                                 cemu_bridge_set_favour_performance(false)
+                             }
+                         })),
+            SettingsItem(id: "cpu.performance", title: "Favour performance",
+                         detail: "As fast as possible: a softer picture, rougher lighting in some games, and shaders that may pop in.",
+                         control: .toggle(values.bool(FavourPerformance.storageKey, FavourPerformance.defaultValue) { on in
+                             cemu_bridge_set_favour_performance(on)
+                             if on {
+                                 UserDefaults.standard.set(false, forKey: "espressu.cpu.favourAccuracy")
+                                 cemu_bridge_set_favour_accuracy(false)
+                             }
+                         })),
+            SettingsItem(id: "cpu.onecore", title: "One-core mode",
+                         detail: "One CPU core, whatever CPU cores is set to.",
+                         control: .toggle(values.bool(OneCoreMode.storageKey, OneCoreMode.defaultValue) { cemu_bridge_set_low_power_mode($0) })),
+        ]
+
+        let metal4 = cemu_bridge_metal4_output_supported()
+        let experimental: [SettingsItem] = [
+            SettingsItem(id: "tuning.metal4", title: "Metal 4 output",
+                         detail: metal4 ? "Not recommended yet: still needs work, and in tests games ran no faster, sometimes slower. Puts finished frames on screen through a separate Metal 4 queue."
+                                        : "Not recommended yet, still needs work. Needs iOS 26 and an A14 or M1 chip or newer.",
+                         control: .toggle(values.bool(PerformanceTuning.metal4OutputKey, PerformanceTuning.metal4OutputDefault) { _ in
+                             PerformanceTuning.applyToBridge()
+                         }),
+                         enabled: metal4),
+            SettingsItem(id: "tuning.metalFx", title: "MetalFX upscaling",
+                         detail: "Sharper enlarging of the finished picture with Apple's MetalFX on Metal. Costs a little GPU time. Not used with a graphic pack's own output filter.",
+                         control: .toggle(values.bool(PerformanceTuning.metalFxUpscaleKey, PerformanceTuning.metalFxUpscaleDefault) { _ in
+                             PerformanceTuning.applyToBridge()
+                         })),
+            SettingsItem(id: "tuning.padPacing", title: "Keep the TV smooth with both screens",
+                         detail: "With TV and GamePad on screen, the GamePad is drawn every second frame and waits while it is slow to show.",
+                         control: .toggle(values.bool(PerformanceTuning.padPresentPacingKey, PerformanceTuning.padPresentPacingDefault) { _ in
+                             PerformanceTuning.applyToBridge()
+                         })),
+            SettingsItem(id: "tuning.padLowRes", title: "Lower-resolution GamePad screen",
+                         detail: "Draws the GamePad at its own 854 pixels instead of the display's sharpness. Saves GPU time; applies the next time the GamePad screen is laid out.",
+                         control: .toggle(values.bool(PerformanceTuning.padLowResolutionKey, PerformanceTuning.padLowResolutionDefault) { _ in
+                             PerformanceTuning.applyToBridge()
+                         })),
+            SettingsItem(id: "tuning.jitOverlaps", title: "No duplicate JIT work",
+                         detail: "JIT threads no longer compile the same game code at the same time and throw one result away. Leaves more CPU for the game.",
+                         control: .toggle(values.bool(PerformanceTuning.jitSkipOverlapsKey, PerformanceTuning.jitSkipOverlapsDefault) { _ in
+                             PerformanceTuning.applyToBridge()
+                         })),
+            SettingsItem(id: "tuning.blockLinking", title: "Faster interpreter without JIT",
+                         detail: "Without JIT, jumps straight from one cached code block to the next instead of looking each one up. Works on one and three cores.",
+                         control: .toggle(values.bool(PerformanceTuning.interpreterBlockLinkingKey, PerformanceTuning.interpreterBlockLinkingDefault) { _ in
+                             PerformanceTuning.applyToBridge()
+                         })),
+            SettingsItem(id: "tuning.diagnostics", title: "Log the experimental options",
+                         detail: "Every 5 seconds writes to log.txt what each option above did and whether it works, lines start with [Tuning]. log.txt is in EspressU's Logs folder in the Files app.",
+                         control: .toggle(values.bool(PerformanceTuning.diagnosticsLogKey, PerformanceTuning.diagnosticsLogDefault) { _ in
+                             PerformanceTuning.applyToBridge()
+                         })),
+            SettingsItem(id: "tuning.memoryWarning", title: "Free memory on warnings",
+                         detail: "When iOS runs low on memory, drops textures the game can reload. Can stop a crash; can cause a short hitch.",
+                         control: .toggle(values.bool(PerformanceTuning.freeMemoryOnWarningKey, PerformanceTuning.freeMemoryOnWarningDefault) { _ in
+                             PerformanceTuning.applyToBridge()
+                         })),
+            SettingsItem(id: "tuning.faultHistory", title: "Keep a GPU memory failure history",
+                         detail: "Notes failed graphics allocations and GPU faults in a small file. Shown in Device report and logs.",
+                         control: .toggle(values.bool(PerformanceTuning.gpuFaultHistoryKey, PerformanceTuning.gpuFaultHistoryDefault) { _ in
+                             PerformanceTuning.applyToBridge()
+                         })),
+        ]
+
         return [
             SettingsGroup(id: "cpu", title: "CPU", items: cpu),
+            SettingsGroup(id: "speed", title: "Speed and accuracy", items: speed),
             SettingsGroup(id: "heat", title: "Heat", items: heat),
+            SettingsGroup(id: "experimental", title: "Experimental", items: experimental),
         ]
     }
 
@@ -202,26 +279,6 @@ extension EspressUSettingsView {
     }
 
     private var controlsGroups: [SettingsGroup] {
-        let percent: (Double) -> String = { "\(Int(($0 * 100).rounded()))%" }
-
-        let touch: [SettingsItem] = [
-            SettingsItem(id: "touch.size", title: "Button size", detail: "Bigger buttons are easier to hit.",
-                         control: .slider(values.double(ControllerLayoutSettings.scaleKey, ControllerLayoutSettings.defaultScale),
-                                          ControllerLayoutSettings.minScale...ControllerLayoutSettings.maxScale, step: 0.05, label: percent)),
-            SettingsItem(id: "touch.opacity", title: "Opacity", detail: "How see-through the buttons are.",
-                         control: .slider(values.double(ControllerLayoutSettings.opacityKey, ControllerLayoutSettings.defaultOpacity),
-                                          0.2...1.0, step: 0.05, label: percent)),
-            SettingsItem(id: "touch.haptics", title: "Haptic feedback", detail: "A light tap when you press a button.",
-                         control: .toggle(values.bool(ControllerLayoutSettings.hapticsKey, ControllerLayoutSettings.defaultHaptics))),
-            SettingsItem(id: "touch.autoHide", title: "Hide with a controller",
-                         detail: "Touch controls disappear while a controller is connected.",
-                         control: .toggle(values.bool(ControllerLayoutSettings.autoHideWithControllerKey,
-                                                      ControllerLayoutSettings.defaultAutoHideWithController))),
-            SettingsItem(id: "touch.more", title: "Layout, sticks and more",
-                         detail: "Move buttons, analog sticks, the controller style.",
-                         control: .link("", .touchControls)),
-        ]
-
         let defaults = UserDefaults.standard
         let motionOn = defaults.object(forKey: MotionSettings.enabledKey) as? Bool ?? MotionSettings.defaultEnabled
         let motionSource = defaults.object(forKey: MotionSettings.sourceKey) as? Int ?? MotionSettings.defaultSource
@@ -270,13 +327,15 @@ extension EspressUSettingsView {
                                            SettingsOption(id: "1", title: "Classic Controller")],
                                           values.intChoice("espressu.input.extraPadType", 0)),
                          enabled: UserDefaults.standard.object(forKey: "espressu.input.extraPads") as? Bool ?? true),
+            SettingsItem(id: "pad.mapping", title: "Controller buttons",
+                         detail: "Choose which button on your controller does what.",
+                         control: .link("", .controllerMapping)),
             SettingsItem(id: "pad.figures", title: "Figure portals",
                          detail: "Skylanders, Disney Infinity and LEGO Dimensions.",
                          control: .link("", .figures)),
         ]
 
         return [
-            SettingsGroup(id: "touch", title: "Touch controls", items: touch),
             SettingsGroup(id: "motion", title: "Motion", items: motion),
             SettingsGroup(id: "controllers", title: "Controllers", items: controllers),
         ]

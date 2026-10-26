@@ -1,7 +1,9 @@
 #include "Cafe/HW/Latte/Renderer/Metal/MetalLayerHandle.h"
 #include "Cafe/HW/Latte/Core/Latte.h"
 #include "Cafe/HW/Latte/Renderer/Metal/MetalLayer.h"
+#include "Cafe/HW/Latte/Core/HostTuning.h"
 
+#include "Cafe/HW/Latte/Core/PerfTelemetry.h"
 #include "gui/interface/WindowSystem.h"
 
 MetalLayerHandle::MetalLayerHandle(MTL::Device* device, const Vector2i& size, bool mainWindow)
@@ -36,11 +38,13 @@ MetalLayerHandle::~MetalLayerHandle()
 
 MetalLayerHandle::MetalLayerHandle(MetalLayerHandle&& other) noexcept
     : m_layer(other.m_layer), m_layerScaleX(other.m_layerScaleX), m_layerScaleY(other.m_layerScaleY),
-      m_drawable(other.m_drawable), m_device(other.m_device), m_isMainWindow(other.m_isMainWindow),
-      m_lastGoodWidth(other.m_lastGoodWidth), m_lastGoodHeight(other.m_lastGoodHeight), m_acquireCount(other.m_acquireCount)
+      m_drawable(other.m_drawable), m_outputStage(other.m_outputStage), m_stageTarget(other.m_stageTarget), m_device(other.m_device), m_isMainWindow(other.m_isMainWindow),
+      m_lastGoodWidth(other.m_lastGoodWidth), m_lastGoodHeight(other.m_lastGoodHeight), m_acquireCount(other.m_acquireCount),
+      m_skipAcquires(other.m_skipAcquires), m_starvedCount(other.m_starvedCount)
 {
     other.m_layer = nullptr;
     other.m_drawable = nullptr;
+    other.m_stageTarget = nullptr;
 }
 
 MetalLayerHandle& MetalLayerHandle::operator=(MetalLayerHandle&& other) noexcept
@@ -53,13 +57,18 @@ MetalLayerHandle& MetalLayerHandle::operator=(MetalLayerHandle&& other) noexcept
     m_layerScaleX = other.m_layerScaleX;
     m_layerScaleY = other.m_layerScaleY;
     m_drawable = other.m_drawable;
+    m_outputStage = other.m_outputStage;
+    m_stageTarget = other.m_stageTarget;
     m_device = other.m_device;
     m_isMainWindow = other.m_isMainWindow;
     m_lastGoodWidth = other.m_lastGoodWidth;
     m_lastGoodHeight = other.m_lastGoodHeight;
     m_acquireCount = other.m_acquireCount;
+    m_skipAcquires = other.m_skipAcquires;
+    m_starvedCount = other.m_starvedCount;
     other.m_layer = nullptr;
     other.m_drawable = nullptr;
+    other.m_stageTarget = nullptr;
     return *this;
 }
 
@@ -112,12 +121,55 @@ void MetalLayerHandle::RepairLayer()
 
 bool MetalLayerHandle::AcquireDrawable()
 {
-    if (m_drawable)
+    if (m_drawable || m_stageTarget)
         return true;
+    if (m_skippingFrame)
+        return false;
 
+    if (m_outputStage && m_layer)
+    {
+        const CGSize drawableSize = m_layer->drawableSize();
+        bool busy = false;
+        m_stageTarget = m_outputStage->BeginFrame(m_isMainWindow ? Metal4OutputStage::TV : Metal4OutputStage::GamePad,
+            (uint32_t)drawableSize.width, (uint32_t)drawableSize.height, (uint32_t)m_layer->pixelFormat(), busy);
+        if (m_stageTarget)
+        {
+            if (m_isMainWindow)
+            {
+                LatteWait::Get().drawableFailuresInARow.store(0, std::memory_order_relaxed);
+                LatteWait::Get().tvDrawableHeld.store(true, std::memory_order_relaxed);
+            }
+            return true;
+        }
+        // All slots are still on their way to the screen: this frame is not shown, and the GPU thread carries on
+        // instead of waiting for the display.
+        if (busy)
+        {
+            m_skippingFrame = true;
+            return false;
+        }
+        // The stage could not take this frame; it goes through the regular drawable instead.
+        HostTuning::Count(HostTuning::GetStats().m4RegularPath);
+    }
+
+    if (m_skipAcquires > 0)
+    {
+        --m_skipAcquires;
+        return false;
+    }
+
+    const uint64_t acquireStart = PerfTelemetry::NowNs();
     {
         LatteWait::Scope waitScope("waiting for a screen drawable", LatteWait::Kind::Display);
         m_drawable = m_layer->nextDrawable();
+    }
+    const uint64_t acquireNs = PerfTelemetry::NowNs() - acquireStart;
+    if (!m_drawable || acquireNs >= 250ull * 1000000ull)
+    {
+        m_skipAcquires = 30;
+        if (m_starvedCount++ % 20 == 0)
+            cemuLog_log(LogType::Force, "layer {} ({}) is not returning drawables ({} ms for {}); skipping its next {} presents ({} times so far)",
+                (void*)this, m_isMainWindow ? "TV" : "GamePad", acquireNs / 1000000ull, m_drawable ? "a drawable" : "nothing", m_skipAcquires, m_starvedCount);
     }
     if (!m_drawable)
     {
@@ -156,12 +208,22 @@ bool MetalLayerHandle::AcquireDrawable()
 void MetalLayerHandle::PresentDrawable(MTL::CommandBuffer* commandBuffer)
 {
     const uint32 swapInterval = LatteGPUState.sharedArea ? LatteGPUState.sharedArea->swapInterval : 0;
-    if (g_latteFullSpeedRenders.load(std::memory_order_relaxed) && swapInterval > 0 && swapInterval <= 4)
-        commandBuffer->presentDrawableAfterMinimumDuration(m_drawable, (double)swapInterval / 60.0 - 0.0015);
+    const bool paced = g_latteFullSpeedRenders.load(std::memory_order_relaxed) && swapInterval > 0 && swapInterval <= 4;
+    if (m_stageTarget)
+    {
+        m_stageTarget = nullptr;
+        m_outputStage->PresentFrame(m_isMainWindow ? Metal4OutputStage::TV : Metal4OutputStage::GamePad, commandBuffer, m_layer,
+            paced ? (double)swapInterval / 60.0 - 0.0015 : 0.0);
+    }
     else
-        commandBuffer->presentDrawable(m_drawable);
-    m_drawable->release();
-    m_drawable = nullptr;
+    {
+        if (paced)
+            commandBuffer->presentDrawableAfterMinimumDuration(m_drawable, (double)swapInterval / 60.0 - 0.0015);
+        else
+            commandBuffer->presentDrawable(m_drawable);
+        m_drawable->release();
+        m_drawable = nullptr;
+    }
     if (m_isMainWindow)
     {
         LatteWait::Get().tvDrawableHeld.store(false, std::memory_order_relaxed);

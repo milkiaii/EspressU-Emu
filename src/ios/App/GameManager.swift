@@ -163,6 +163,7 @@ enum LibraryMetadataCache {
 
 @MainActor
 class GameManager: ObservableObject {
+    @Published private(set) var isQuitting = false
     @Published var games: [GameMetadata] = [] {
         didSet {
             DuplicateInstalls.shared.update(games)
@@ -196,7 +197,7 @@ class GameManager: ObservableObject {
     private let gameListFile = "games.json"
     private var emulationEngine: EmulationEngine?
     private var surfaceRegistered = false
-    private static let favoriteIDsKey = "espressu.library.favoriteGameIDs"
+    private nonisolated static let favoriteIDsKey = "espressu.library.favoriteGameIDs"
 
     init() {
         cemu_bridge_set_title_switch_callback { titleId in
@@ -576,7 +577,7 @@ class GameManager: ObservableObject {
         return cemu_bridge_derive_base_title_id(titleId)
     }
 
-    static let manualCoverExtensions = ["jpg", "jpeg", "png"]
+    nonisolated static let manualCoverExtensions = ["jpg", "jpeg", "png"]
 
     private nonisolated static func findCover(for gameID: String, romPath: String, in directory: URL) -> String? {
         let fileManager = FileManager.default
@@ -774,9 +775,9 @@ class GameManager: ObservableObject {
         }
     }
 
-    static let supportedROMExtensions: Set<String> = ["wux", "wud", "wua", "iso", "rpx", "wuhb", "elf"]
+    nonisolated static let supportedROMExtensions: Set<String> = ["wux", "wud", "wua", "iso", "rpx", "wuhb", "elf"]
 
-    private static let stagingDirectoryName = ".incoming"
+    private nonisolated static let stagingDirectoryName = ".incoming"
 
     private nonisolated static func fileMagic(at url: URL, count: Int = 4) -> Data? {
         guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
@@ -1043,6 +1044,8 @@ class GameManager: ObservableObject {
             cemu_bridge_set_stretch_to_fill(
                 UserDefaults.standard.object(forKey: FrameStretch.storageKey) as? Bool
                     ?? FrameStretch.defaultValue)
+            PerformanceTuning.applyToBridge()
+            SessionReport.pushSettings(gameID: game.settingsKey, title: game.displayTitle ?? game.title)
 
             cemu_bridge_set_graphics_api(
                 Int32(clamping: UserDefaults.standard.object(forKey: "espressu.render.graphicsAPI") as? Int ?? 2))
@@ -1145,7 +1148,7 @@ class GameManager: ObservableObject {
             let status = EmulationEngine.bootBlocking(path: romPath)
             cemu_bridge_log_checkpoint("launchGame: engine.boot() returned [background]")
 
-            await MainActor.run {
+            await MainActor.run { [weak self] in
                 guard let self else { return }
                 guard self.launchToken == token, self.emulationState == .loading else {
                     if status == CEMU_BRIDGE_OK, self.currentGame == nil {
@@ -1212,6 +1215,37 @@ class GameManager: ObservableObject {
         emulationState = .idle
         currentGame = nil
         ActiveGameSettings.end()
+    }
+
+    /// Same as stopEmulation, but the slow part (joining the CPU and GPU threads, flushing caches)
+    /// runs off the main thread so the UI stays responsive. A new launch waits until it is done.
+    func quitEmulationAsync() {
+        guard !isQuitting else { return }
+        isQuitting = true
+        launchToken = UUID()
+        if let gameID = currentGame?.settingsKey {
+            AutoCoreHistory.sessionEnded(gameID: gameID, stalled: videoStalled && videoStallKind == 1)
+        }
+        stopFrameRateMonitor()
+        #if os(iOS)
+        cemu_bridge_resume()
+        #endif
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            cemu_bridge_shutdown_title()
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.emulationEngine?.stop()
+                #if os(iOS)
+                DisplayRouter.shared.titleStopped()
+                #endif
+                self.surfaceRegistered = false
+                self.releaseExternalHold()
+                self.emulationState = .idle
+                self.currentGame = nil
+                ActiveGameSettings.end()
+                self.isQuitting = false
+            }
+        }
     }
 
     private func releaseExternalHold() {

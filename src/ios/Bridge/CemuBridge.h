@@ -175,6 +175,7 @@ bool cemu_bridge_timebase_auto_enabled(void);
 bool cemu_bridge_has_txm(void);
 
 int cemu_bridge_cpu_mode(void);
+bool cemu_bridge_jit_probe(void);
 
 void cemu_bridge_set_recompiler_enabled(bool enabled);
 bool cemu_bridge_recompiler_enabled(void);
@@ -186,6 +187,33 @@ bool cemu_bridge_favour_performance(void);
 
 void cemu_bridge_set_full_speed_renders(bool enabled, int shaderMode);
 bool cemu_bridge_full_speed_renders(void);
+
+typedef enum {
+    CEMU_BRIDGE_TUNING_FREE_MEMORY_ON_WARNING = 0,
+    CEMU_BRIDGE_TUNING_GPU_FAULT_HISTORY = 1,
+    CEMU_BRIDGE_TUNING_METALFX_UPSCALE = 2,
+    CEMU_BRIDGE_TUNING_METAL4_OUTPUT = 3,
+    // 4 was frame generation, removed
+    CEMU_BRIDGE_TUNING_PAD_PRESENT_PACING = 5,
+    CEMU_BRIDGE_TUNING_INTERPRETER_BLOCK_LINKING = 6,
+    CEMU_BRIDGE_TUNING_PAD_LOW_RESOLUTION = 7,
+    CEMU_BRIDGE_TUNING_DIAGNOSTICS_LOG = 8,
+    CEMU_BRIDGE_TUNING_JIT_SKIP_OVERLAPS = 9,
+} CemuBridgeTuning;
+
+void cemu_bridge_set_tuning(CemuBridgeTuning option, int value);
+int cemu_bridge_tuning(CemuBridgeTuning option);
+
+bool cemu_bridge_metal4_output_supported(void);
+
+// The session report (EspressU-Report.txt): settings text from the front end, and the file paths.
+void cemu_bridge_report_settings(const char* text);
+const char* cemu_bridge_report_path(void);
+const char* cemu_bridge_report_previous_path(void);
+void cemu_bridge_report_clear(void);
+
+const char* cemu_bridge_gpu_fault_history(void);
+void cemu_bridge_clear_gpu_fault_history(void);
 
 double cemu_bridge_device_temperature_celsius(void);
 
@@ -387,6 +415,8 @@ void cemu_bridge_memory_note(const char* tag);
 
 void cemu_bridge_start_memory_watchdog(void);
 
+void cemu_bridge_flush_pipeline_cache(void);
+
 const char* cemu_bridge_crash_log_path(void);
 
 void cemu_bridge_refresh_input_devices(void);
@@ -499,6 +529,21 @@ int cemu_bridge_input_button_mapping_count(void);
 const char* cemu_bridge_input_profile_name(void);
 
 bool cemu_bridge_reset_controller_bindings(void);
+
+// GamePad buttons that can be remapped onto a physical controller. The values match VPADController::ButtonId.
+typedef enum {
+    CEMU_BRIDGE_PAD_A = 1, CEMU_BRIDGE_PAD_B = 2, CEMU_BRIDGE_PAD_X = 3, CEMU_BRIDGE_PAD_Y = 4,
+    CEMU_BRIDGE_PAD_L = 5, CEMU_BRIDGE_PAD_R = 6, CEMU_BRIDGE_PAD_ZL = 7, CEMU_BRIDGE_PAD_ZR = 8,
+    CEMU_BRIDGE_PAD_PLUS = 9, CEMU_BRIDGE_PAD_MINUS = 10,
+    CEMU_BRIDGE_PAD_UP = 11, CEMU_BRIDGE_PAD_DOWN = 12, CEMU_BRIDGE_PAD_LEFT = 13, CEMU_BRIDGE_PAD_RIGHT = 14,
+    CEMU_BRIDGE_PAD_STICK_L = 15, CEMU_BRIDGE_PAD_STICK_R = 16,
+} CemuBridgePadMapButton;
+
+// Physical buttons are numbered 0 A, 1 B, 2 X, 3 Y, 4 left bumper, 5 right bumper, 6 left trigger, 7 right trigger,
+// 8 options, 9 menu, 10 and 11 stick clicks, 12 to 15 D-pad up, down, left, right. A negative deviceButton puts the default back.
+void cemu_bridge_pad_mapping_set(int padButton, int deviceButton);
+void cemu_bridge_pad_mapping_clear_all(void);
+int cemu_bridge_pad_mapping_default(int padButton);
 
 #ifdef __cplusplus
 }
