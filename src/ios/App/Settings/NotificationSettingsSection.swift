@@ -56,7 +56,7 @@ struct NotificationSettingsSection: View {
             SettingsSectionHeader("Notifications", icon: "bell", accent: .io)
         } footer: {
             InfoButton.footer(
-                "Pop-ups for controllers, shader compiling and friends. They show in the corner you pick; choose Off to hide them all.",
+                loc("Pop-ups for controllers, shader compiling and friends. They show in the corner you pick; choose Off to hide them all."),
                 title: "Notifications",
                 text: fullText)
         }
@@ -66,10 +66,10 @@ struct NotificationSettingsSection: View {
     private var positionPicker: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Position")
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .font(.footnote.weight(.semibold))
             Picker("Position", selection: $positionRaw) {
                 ForEach(ScreenPosition.allCases) { position in
-                    Text(position.title).tag(position.rawValue)
+                    Text(loc(position.title)).tag(position.rawValue)
                 }
             }
             .pickerStyle(.menu)
@@ -82,8 +82,8 @@ struct NotificationSettingsSection: View {
     }
 
     private var textColorField: some View {
-        ColorPicker("Text colour", selection: packedColourBinding($textColor), supportsOpacity: false)
-            .font(.system(size: 15, weight: .semibold, design: .rounded))
+        ColorPicker(loc("Text colour"), selection: packedColourBinding($textColor), supportsOpacity: false)
+            .font(.subheadline.weight(.semibold))
             .disabled(isOff)
             .onValueChange(of: textColor) { newValue in
                 cemu_bridge_set_notification_text_color(UInt32(truncatingIfNeeded: newValue))
@@ -94,7 +94,7 @@ struct NotificationSettingsSection: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text("Text size")
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .font(.footnote.weight(.semibold))
                 Spacer()
                 Text("\(textScale)%")
                     .font(.system(size: 13, design: .monospaced))
@@ -113,7 +113,7 @@ struct NotificationSettingsSection: View {
     private var controllerProfilesToggle: some View {
         Toggle(isOn: $controllerProfilesEnabled) {
             Text("Controller profiles")
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .font(.subheadline.weight(.semibold))
         }
         .tint(EspressUTheme.accentText)
         .disabled(isOff)
@@ -125,7 +125,7 @@ struct NotificationSettingsSection: View {
     private var controllerBatteryToggle: some View {
         Toggle(isOn: $controllerBatteryEnabled) {
             Text("Low controller battery")
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .font(.subheadline.weight(.semibold))
         }
         .tint(EspressUTheme.accentText)
         .disabled(isOff)
@@ -137,7 +137,7 @@ struct NotificationSettingsSection: View {
     private var shaderCompilingToggle: some View {
         Toggle(isOn: $shaderCompilingEnabled) {
             Text("Shader compiling")
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .font(.subheadline.weight(.semibold))
         }
         .tint(EspressUTheme.accentText)
         .disabled(isOff)
@@ -149,7 +149,7 @@ struct NotificationSettingsSection: View {
     private var friendsToggle: some View {
         Toggle(isOn: $friendsEnabled) {
             Text("Friends")
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .font(.subheadline.weight(.semibold))
         }
         .tint(EspressUTheme.accentText)
         .disabled(isOff)

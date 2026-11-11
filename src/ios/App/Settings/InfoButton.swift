@@ -24,16 +24,16 @@ struct InfoButton: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.borderless)
-        .accessibilityLabel("About \(title)")
+        .accessibilityLabel(locf("About %@", title))
         .sheet(isPresented: $showing) {
-            NavigationView {
+            EspressUNavigation {
                 ZStack {
                     EspressUTheme.backgroundGradient
                         .ignoresSafeArea()
 
                     ScrollView {
                         EspressUCard {
-                            Text(text)
+                            Text(loc(text))
                                 .font(.system(size: 15))
                                 .lineSpacing(3)
                                 .foregroundColor(EspressUTheme.brownDarkest)
@@ -43,7 +43,7 @@ struct InfoButton: View {
                         .padding(16)
                     }
                 }
-                .navigationTitle(title)
+                .navigationTitle(loc(title))
                 .espressuOpaqueNavigationBar()
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
@@ -52,7 +52,6 @@ struct InfoButton: View {
                     }
                 }
             }
-            .navigationViewStyle(.stack)
         }
     }
 }
@@ -74,7 +73,7 @@ extension InfoButton {
     }
 
     private static func footerText(_ short: String) -> some View {
-        Text(short)
+        Text(loc(short))
             .font(.footnote)
             .foregroundColor(EspressUTheme.secondaryText)
             .lineSpacing(2.5)

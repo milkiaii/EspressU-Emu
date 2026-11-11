@@ -16,8 +16,8 @@ struct InGamePillButton: View {
                 Image(systemName: symbol)
                     .font(.system(size: 15, weight: .bold))
                 if let title {
-                    Text(title)
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                    Text(loc(title))
+                        .font(.system(size: 15, weight: .bold))
                 }
             }
             .foregroundColor(.white)

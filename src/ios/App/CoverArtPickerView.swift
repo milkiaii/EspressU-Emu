@@ -32,7 +32,7 @@ struct CoverArtPickerView: View {
     }
 
     var body: some View {
-        NavigationView {
+        EspressUNavigation {
             ZStack {
                 EspressUTheme.backgroundGradient.ignoresSafeArea()
 
@@ -54,7 +54,6 @@ struct CoverArtPickerView: View {
                 }
             }
         }
-        .navigationViewStyle(.stack)
         .foregroundColor(EspressUTheme.brownDarkest)
         .fileImporter(isPresented: $showingFileImporter, allowedContentTypes: [.image]) { result in
             handleFileImportResult(result)
@@ -74,7 +73,7 @@ struct CoverArtPickerView: View {
         )) {
             Button("OK", role: .cancel) { errorMessage = nil }
         } message: {
-            Text(errorMessage ?? "")
+            Text(loc(errorMessage ?? ""))
         }
         .confirmationDialog("Remove custom cover?", isPresented: $showingRemoveConfirmation, titleVisibility: .visible) {
             Button("Remove Custom Cover", role: .destructive) {
@@ -93,10 +92,10 @@ struct CoverArtPickerView: View {
             HStack(spacing: 12) {
                 coverThumbnail
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(game.displayTitle ?? game.title)
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    Text(hasOverride ? "Using your custom cover." : "Using the automatic cover.")
-                        .font(.system(size: 12, design: .rounded))
+                    Text(loc(game.displayTitle ?? game.title))
+                        .font(.subheadline.weight(.semibold))
+                    Text(loc(hasOverride ? "Using your custom cover." : "Using the automatic cover."))
+                        .font(.caption)
                         .foregroundColor(EspressUTheme.brownMid)
                 }
                 Spacer()
@@ -209,23 +208,23 @@ struct CoverArtPickerView: View {
                 }
             } else if tdbFetchAttempted && !isFetchingTdb {
                 Text("No cover art found for that ID.")
-                    .font(.system(size: 13, design: .rounded))
+                    .font(.footnote)
                     .foregroundColor(EspressUTheme.brownMid)
             }
         } header: {
             Text("Try a Specific GameTDB ID")
         } footer: {
             InfoButton.footer(
-                "Look up your game's ID on gametdb.com.",
-                title: "GameTDB Game ID",
-                text: "GameTDB has no search feature we can use. Find your game at https://www.gametdb.com/WiiU/CoverArt, copy its 6-character Game ID (for example AGBE01) and enter it above. Fetch shows a preview before anything is saved."
+                loc("Look up your game's ID on gametdb.com."),
+                title: loc("GameTDB Game ID"),
+                text: loc("GameTDB has no search feature we can use. Find your game at https://www.gametdb.com/WiiU/CoverArt, copy its 6-character Game ID (for example AGBE01) and enter it above. Fetch shows a preview before anything is saved.")
             )
         }
     }
 
     private func handlePickedImageData(_ data: Data) {
         guard let prepared = CoverImageLoader.prepareCustomCover(from: data) else {
-            errorMessage = "That doesn't look like a valid image."
+            errorMessage = loc("That doesn't look like a valid image.")
             return
         }
         applyImageData(prepared.data, ext: prepared.ext)
@@ -234,12 +233,12 @@ struct CoverArtPickerView: View {
     private func handleFileImportResult(_ result: Result<URL, Error>) {
         switch result {
         case .failure(let error):
-            errorMessage = "Couldn't import that file: \(error.localizedDescription)"
+            errorMessage = locf("Couldn't import that file: %@", error.localizedDescription)
         case .success(let url):
             let accessed = url.startAccessingSecurityScopedResource()
             defer { if accessed { url.stopAccessingSecurityScopedResource() } }
             guard let data = try? Data(contentsOf: url) else {
-                errorMessage = "Couldn't read that file."
+                errorMessage = loc("Couldn't read that file.")
                 return
             }
             handlePickedImageData(data)
@@ -308,7 +307,7 @@ private struct ModernPhotoPickerButton: View {
             guard let newItem else { return }
             Task {
                 guard let data = try? await newItem.loadTransferable(type: Data.self) else {
-                    await MainActor.run { onError("Couldn't load that photo.") }
+                    await MainActor.run { onError(loc("Couldn't load that photo.")) }
                     return
                 }
                 await MainActor.run { onPicked(data) }

@@ -65,6 +65,7 @@ struct EspressUHomeScreen<Lead: View, GameMenu: View>: View {
     }
 
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     @ObservedObject private var uiStyle = UIStyleStore.shared
     @ObservedObject private var playStats = LibraryPlayStats.shared
@@ -95,9 +96,93 @@ struct EspressUHomeScreen<Lead: View, GameMenu: View>: View {
     @State private var addFocus: String?
     @State private var centerId: String?
     @State private var carouselDrag: CGFloat = 0
+    @State private var backdropPaths: [String?] = [nil, nil]
+    @State private var backdropOpacity: [Double] = [0, 0]
+    @State private var backdropTop = 0
+    @State private var backdropPending: String?
+    @State private var backdropBusy = false
+    @State private var backdropWork: DispatchWorkItem?
     @State private var gridAtTop = true
 
     private var isPhone: Bool { sizeClass == .compact }
+
+    // The phone grid has no carousel to flick through, so its backdrop changes faster.
+    private var backdropDebounce: Double { isPhone ? 0.05 : 0.25 }
+    private var backdropFade: Double { isPhone ? 0.3 : 0.8 }
+
+    private var backdropPath: String? {
+        games.indices.contains(centerIndex) ? games[centerIndex].coverPath : nil
+    }
+
+    /// The centred game's cover, blurred behind everything, so glass bars have something to refract.
+    /// Two persistent layers: the next cover is loaded invisibly on the spare layer, then faded in
+    /// over the old one, so changing games never dips to black.
+    @ViewBuilder private var ambientBackdrop: some View {
+        ZStack {
+            ForEach(0..<2, id: \.self) { index in
+                if let path = backdropPaths[index] {
+                    backdropImage(path)
+                        .opacity(backdropOpacity[index])
+                        .zIndex(index == backdropTop ? 1 : 0)
+                }
+            }
+        }
+        // Light mode needs more cover colour than dark mode for the blur to read against the grey ground.
+        .opacity(colorScheme == .dark ? 0.32 : 0.55)
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
+        .onAppear { showBackdrop(backdropPath) }
+        .onValueChange(of: backdropPath) { showBackdrop($0) }
+    }
+
+    /// Changes are debounced: while the carousel is flicked through, the backdrop stays put and
+    /// then cross-fades once, to wherever it settled.
+    private func showBackdrop(_ path: String?) {
+        guard let path else { return }
+        if backdropPaths[backdropTop] == nil {
+            backdropPaths[backdropTop] = path
+            backdropOpacity[backdropTop] = 1
+            return
+        }
+        backdropPending = path
+        backdropWork?.cancel()
+        let work = DispatchWorkItem { runBackdropFade() }
+        backdropWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + backdropDebounce, execute: work)
+    }
+
+    private func runBackdropFade() {
+        guard !backdropBusy, let path = backdropPending, backdropPaths[backdropTop] != path else { return }
+        backdropBusy = true
+        let next = 1 - backdropTop
+        backdropPaths[next] = path
+        backdropOpacity[next] = 0
+        backdropTop = next
+        let fade = backdropFade
+        DispatchQueue.main.asyncAfter(deadline: .now() + (isPhone ? 0.03 : 0.15)) {
+            // One phase: the new cover fades in while the old one fades out, on the same curve.
+            withAnimation(.easeInOut(duration: fade)) {
+                backdropOpacity[next] = 1
+                backdropOpacity[1 - next] = 0
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + fade + 0.05) {
+                backdropBusy = false
+                if backdropPending != backdropPaths[backdropTop] { runBackdropFade() }
+            }
+        }
+    }
+
+    /// The cover is decoded small and scaled up: it is blurred anyway, and flicking through a
+    /// long library must not decode screen-sized images.
+    private func backdropImage(_ path: String) -> some View {
+        let side = max(UIScreen.main.bounds.width, UIScreen.main.bounds.height)
+        return CoverImage(path: path, fill: true)
+            .frame(width: 160, height: 160)
+            .blur(radius: 9)
+            .saturation(0.6)
+            // Oversized so the blur's feathered edge stays off-screen.
+            .scaleEffect(side / 160 * 1.6)
+    }
 
     private var selectedGame: GameMetadata? {
         guard let selectedId else { return nil }
@@ -108,6 +193,7 @@ struct EspressUHomeScreen<Lead: View, GameMenu: View>: View {
         let _ = (pad.onCommand = handlePad)
         ZStack(alignment: .bottom) {
             EspressUBackground()
+            ambientBackdrop
 
             VStack(spacing: 0) {
                 topBar
@@ -118,7 +204,7 @@ struct EspressUHomeScreen<Lead: View, GameMenu: View>: View {
                         if isPhone {
                             Button { closeSearch() } label: {
                                 Text("Cancel")
-                                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                                    .font(.subheadline.weight(.semibold))
                                     .foregroundColor(EspressUTheme.accentText)
                                     .frame(minHeight: 44)
                                     .contentShape(Rectangle())
@@ -288,33 +374,35 @@ struct EspressUHomeScreen<Lead: View, GameMenu: View>: View {
         if insets != measured { insets = measured }
     }
 
+    /// A large title naming what the list shows, as system apps do, instead of the app name and logo.
+    private var screenTitle: String {
+        if showingFavorites { return loc("Favourites") }
+        return loc("Library")
+    }
+
     private var topBar: some View {
         HStack(spacing: 12) {
-            Image("AppIcon-preview")
-                .resizable()
-                .scaledToFill()
-                .frame(width: isPhone ? 36 : 44, height: isPhone ? 36 : 44)
-                .clipShape(RoundedRectangle(cornerRadius: isPhone ? 9 : 11, style: .continuous))
-                .shadow(color: EspressUTheme.shadow.opacity(0.25), radius: 4, y: 2)
-                .accessibilityHidden(true)
-            Text("EspressU")
-                .font(.system(size: isPhone ? 22 : 26, weight: .heavy, design: .rounded))
+            Text(loc(screenTitle))
+                .font(.largeTitle.bold())
                 .foregroundColor(EspressUTheme.brownDarkest)
+                .contentTransition(.opacity)
+                .animation(.snappy(duration: 0.25), value: screenTitle)
+                .accessibilityAddTraits(.isHeader)
             Spacer(minLength: 8)
             if !(isPhone && verticalSizeClass == .regular) {
-            TimelineView(.everyMinute) { context in
-                HStack(alignment: .firstTextBaseline, spacing: 10) {
-                    if !isPhone {
-                        Text(context.date, format: .dateTime.weekday(.abbreviated).day().month(.abbreviated))
-                            .font(.system(size: 15, weight: .semibold, design: .rounded))
-                            .foregroundColor(EspressUTheme.brownMid)
+                TimelineView(.everyMinute) { context in
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                        if !isPhone {
+                            Text(context.date, format: .dateTime.weekday(.abbreviated).day().month(.abbreviated))
+                                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                                .foregroundColor(EspressUTheme.brownMid)
+                        }
+                        Text(context.date, format: .dateTime.hour().minute())
+                            .font(.system(size: isPhone ? 22 : 30, weight: .bold, design: .rounded))
+                            .monospacedDigit()
+                            .foregroundColor(EspressUTheme.brownDarkest)
                     }
-                    Text(context.date, format: .dateTime.hour().minute())
-                        .font(.system(size: isPhone ? 22 : 30, weight: .bold, design: .rounded))
-                        .monospacedDigit()
-                        .foregroundColor(EspressUTheme.brownDarkest)
                 }
-            }
             }
         }
         .padding(.horizontal, isPhone ? 20 : 40)
@@ -372,7 +460,7 @@ struct EspressUHomeScreen<Lead: View, GameMenu: View>: View {
                                 RoundedRectangle(cornerRadius: 26, style: .continuous)
                                     .strokeBorder(EspressUTheme.pixelBlue, lineWidth: 5)
                                     .opacity(isCenter && focused ? 1 : 0))
-                            .shadow(color: isCenter ? EspressUTheme.shadow.opacity(0.35) : EspressUTheme.shadow.opacity(0.15),
+                            .shadow(color: isCenter ? EspressUTheme.shadow.opacity(0.17) : EspressUTheme.shadow.opacity(0.07),
                                     radius: isCenter ? 22 : 8, y: isCenter ? 10 : 4)
                             .contentShape(Rectangle())
                             .onTapGesture { if !isCenter { bringToCenter(index) } }
@@ -381,7 +469,7 @@ struct EspressUHomeScreen<Lead: View, GameMenu: View>: View {
                         .offset(x: x)
                         .zIndex(-Double(distance))
                         .accessibilityElement(children: .ignore)
-                        .accessibilityLabel(item.cardName.name)
+                        .accessibilityLabel(loc(item.cardName.name))
                         .accessibilityAddTraits(isCenter ? [] : .isButton)
                         .accessibilityHint(isCenter ? "" : "Brings the game to the middle.")
                     }
@@ -396,7 +484,8 @@ struct EspressUHomeScreen<Lead: View, GameMenu: View>: View {
                         let predicted = value.predictedEndTranslation.width
                         let moved = Int((-predicted / step).rounded())
                         let target = min(max(center + moved, 0), games.count - 1)
-                        withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+                        if target != center { EspressUHaptics.select() }
+                        withAnimation(.spring(response: 0.34, dampingFraction: 0.78)) {
                             carouselDrag = 0
                             bringToCenter(target, animated: false)
                         }
@@ -412,8 +501,8 @@ struct EspressUHomeScreen<Lead: View, GameMenu: View>: View {
                                 .opacity(center > 0 ? 1 : 0.3)
                                 .accessibilityHidden(true)
                         }
-                        Text(game.cardName.name)
-                            .font(.system(size: isPhone ? 21 : 26, weight: .heavy, design: .rounded))
+                        Text(loc(game.cardName.name))
+                            .font(isPhone ? .title2.bold() : .title.bold())
                             .foregroundColor(EspressUTheme.brownDarkest)
                             .lineLimit(1)
                             .minimumScaleFactor(0.7)
@@ -426,7 +515,7 @@ struct EspressUHomeScreen<Lead: View, GameMenu: View>: View {
                         }
                     }
                     Text("\(center + 1) of \(games.count)" + (game.region.map { "  ·  \($0)" } ?? ""))
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .font(.subheadline.weight(.semibold))
                         .foregroundColor(EspressUTheme.brownMid)
                         .monospacedDigit()
                 }
@@ -437,7 +526,7 @@ struct EspressUHomeScreen<Lead: View, GameMenu: View>: View {
                                         hint: pad.selectSymbol)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel(game.isFavorite ? "Remove from favourites" : "Add to favourites")
+                    .accessibilityLabel(game.isFavorite ? loc("Remove from favourites") : loc("Add to favourites"))
                     Button { actions.play(game) } label: {
                         HStack(spacing: 6) {
                             if pad.showsFocus {
@@ -446,7 +535,7 @@ struct EspressUHomeScreen<Lead: View, GameMenu: View>: View {
                             }
                             Text("Start")
                         }
-                        .font(.system(size: 17, weight: .heavy, design: .rounded))
+                        .font(.body.weight(.semibold))
                         .foregroundColor(EspressUTheme.onCremaTop)
                         .padding(.horizontal, 34)
                         .frame(height: 46)
@@ -457,13 +546,13 @@ struct EspressUHomeScreen<Lead: View, GameMenu: View>: View {
                         sideButtonLabel(symbol: "ellipsis", tint: EspressUTheme.brownDark, hint: pad.menuSymbol, hintTrailing: true)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("More options for \(game.cardName.name)")
+                    .accessibilityLabel(locf("More options for %@", game.cardName.name))
                 }
             }
             .animation(nil, value: center)
         }
         .frame(width: size.width, height: size.height - reserve, alignment: .center)
-        .animation(.spring(response: 0.42, dampingFraction: 0.86), value: center)
+        .animation(.spring(response: 0.34, dampingFraction: 0.78), value: center)
     }
 
     /// The carousel needs more width than a phone has, so phones get a plain two-column grid.
@@ -493,14 +582,29 @@ struct EspressUHomeScreen<Lead: View, GameMenu: View>: View {
             }
             LazyVGrid(columns: columns, spacing: 20) {
                 ForEach(Array(games.enumerated()), id: \.element.id) { index, item in
+                    let isSelected = selectedId == item.id
                     Button {
-                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                        actions.play(item)
+                        if isSelected {
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                            actions.play(item)
+                        } else {
+                            // First tap selects (the backdrop follows), second tap starts.
+                            EspressUHaptics.select()
+                            withAnimation(.snappy(duration: 0.25)) {
+                                centerId = item.id
+                                selectedId = item.id
+                            }
+                        }
                     } label: {
                         VStack(spacing: 10) {
                             EspressUCover(game: item, radius: 22)
                                 .aspectRatio(1, contentMode: .fit)
-                                .shadow(color: EspressUTheme.shadow.opacity(0.22), radius: 9, y: 5)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                                        .strokeBorder(Color.primary.opacity(0.55), lineWidth: 3)
+                                        .opacity(isSelected ? 1 : 0))
+                                .scaleEffect(isSelected ? 1.03 : 1)
+                                .shadow(color: EspressUTheme.shadow.opacity(0.11), radius: 9, y: 5)
                                 .overlay(alignment: .topTrailing) {
                                     if item.isFavorite {
                                         Image(systemName: "heart.fill")
@@ -519,8 +623,8 @@ struct EspressUHomeScreen<Lead: View, GameMenu: View>: View {
                                         .background(.black.opacity(0.35), in: Circle())
                                         .padding(8)
                                 }
-                            Text(item.cardName.name)
-                                .font(.system(size: 14, weight: .bold, design: .rounded))
+                            Text(loc(item.cardName.name))
+                                .font(.subheadline.weight(.semibold))
                                 .foregroundColor(EspressUTheme.brownDarkest)
                                 .lineLimit(2)
                                 .multilineTextAlignment(.center)
@@ -537,13 +641,13 @@ struct EspressUHomeScreen<Lead: View, GameMenu: View>: View {
                     .contextMenu {
                         Button { actions.play(item) } label: { Label("Start", systemImage: "play.fill") }
                         Button { actions.toggleFavorite(item) } label: {
-                            Label(item.isFavorite ? "Remove from favourites" : "Add to favourites",
+                            Label(item.isFavorite ? loc("Remove from favourites") : loc("Add to favourites"),
                                   systemImage: item.isFavorite ? "heart.slash" : "heart")
                         }
                         Button { openOptions(item) } label: { Label("More options", systemImage: "ellipsis.circle") }
                     }
-                    .accessibilityLabel(item.cardName.name)
-                    .accessibilityHint("Starts the game.")
+                    .accessibilityLabel(loc(item.cardName.name))
+                    .accessibilityHint(isSelected ? loc("Starts the game.") : loc("Selects the game. Tap again to start."))
                 }
             }
             .padding(.horizontal, 14)
@@ -609,13 +713,13 @@ struct EspressUHomeScreen<Lead: View, GameMenu: View>: View {
             HStack(spacing: 14) {
                 EspressUCover(game: item, radius: 18)
                     .frame(width: 84, height: 84)
-                    .shadow(color: EspressUTheme.shadow.opacity(0.22), radius: 8, y: 4)
+                    .shadow(color: EspressUTheme.shadow.opacity(0.11), radius: 8, y: 4)
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Continue playing")
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .font(.caption.weight(.semibold))
                         .foregroundColor(EspressUTheme.brownMid)
-                    Text(item.cardName.name)
-                        .font(.system(size: 17, weight: .heavy, design: .rounded))
+                    Text(loc(item.cardName.name))
+                        .font(.body.weight(.semibold))
                         .foregroundColor(EspressUTheme.brownDarkest)
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
@@ -635,12 +739,12 @@ struct EspressUHomeScreen<Lead: View, GameMenu: View>: View {
         .contextMenu {
             Button { actions.play(item) } label: { Label("Start", systemImage: "play.fill") }
             Button { actions.toggleFavorite(item) } label: {
-                Label(item.isFavorite ? "Remove from favourites" : "Add to favourites",
+                Label(item.isFavorite ? loc("Remove from favourites") : loc("Add to favourites"),
                       systemImage: item.isFavorite ? "heart.slash" : "heart")
             }
             Button { openOptions(item) } label: { Label("More options", systemImage: "ellipsis.circle") }
         }
-        .accessibilityLabel("Continue playing \(item.cardName.name)")
+        .accessibilityLabel(locf("Continue playing %@", item.cardName.name))
     }
 
     private func sideButtonLabel(symbol: String, tint: Color, hint: String, hintTrailing: Bool = false) -> some View {
@@ -668,7 +772,7 @@ struct EspressUHomeScreen<Lead: View, GameMenu: View>: View {
             if barFocus == nil { selectedId = id }
         }
         if animated {
-            withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) { change() }
+            withAnimation(.spring(response: 0.34, dampingFraction: 0.78)) { change() }
         } else {
             change()
         }
@@ -680,12 +784,12 @@ struct EspressUHomeScreen<Lead: View, GameMenu: View>: View {
         } else {
             let (symbol, heading, line): (String, String, String) = {
                 if !searchText.isEmpty {
-                    return ("magnifyingglass", "No matches", "Nothing matches \u{201C}\(searchText)\u{201D}.")
+                    return ("magnifyingglass", loc("No matches"), locf("Nothing matches \u{201C}%@\u{201D}.", searchText))
                 }
                 if showingFavorites {
-                    return ("heart", "No favourites yet", "Long-press a game and choose Favourite to see it here.")
+                    return ("heart", loc("No favourites yet"), loc("Long-press a game and choose Favourite to see it here."))
                 }
-                return ("square.grid.2x2", "No games yet",
+                return ("square.grid.2x2", loc("No games yet"),
                         "Tap Add to import a game, or put game files in Files \u{203A} On My \(UIDevice.current.userInterfaceIdiom == .pad ? "iPad" : "iPhone") \u{203A} EspressU \u{203A} Roms.")
             }()
             VStack(spacing: 14) {
@@ -693,19 +797,19 @@ struct EspressUHomeScreen<Lead: View, GameMenu: View>: View {
                     .font(.system(size: 54, weight: .regular))
                     .foregroundColor(EspressUTheme.pixelBlue.opacity(0.7))
                     .accessibilityHidden(true)
-                Text(heading)
-                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                Text(loc(heading))
+                    .font(.title3.weight(.semibold))
                     .foregroundColor(EspressUTheme.brownDarkest)
                     .accessibilityAddTraits(.isHeader)
-                Text(line)
-                    .font(.system(size: 15, weight: .medium, design: .rounded))
+                Text(loc(line))
+                    .font(.subheadline.weight(.medium))
                     .foregroundColor(EspressUTheme.brownMid)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
                 if searchText.isEmpty && !showingFavorites {
                     Button { showingAdd = true } label: {
                         Label("Add games", systemImage: "plus")
-                            .font(.system(size: 16, weight: .heavy, design: .rounded))
+                            .font(.body.weight(.semibold))
                             .foregroundColor(EspressUTheme.onCremaTop)
                             .padding(.horizontal, 24)
                             .frame(height: 46)
@@ -721,32 +825,32 @@ struct EspressUHomeScreen<Lead: View, GameMenu: View>: View {
 
     /// Phones search by pulling the list down, so the bar has no Search button there.
     private var barItems: [EspressUMenuBar.Item] {
-        isPhone ? allBarItems.filter { $0.title != "Search" } : allBarItems
+        isPhone ? allBarItems.filter { $0.title != loc("Search") } : allBarItems
     }
 
     private var allBarItems: [EspressUMenuBar.Item] {
         let jitOn = JITStatus.isActive && vpn.isConnected
         return [
-            .init(title: "Add", systemImage: "plus", tint: EspressUTheme.accentText, isOn: showingAdd) {
+            .init(title: loc("Add"), systemImage: "plus", tint: EspressUTheme.accentText, isOn: showingAdd) {
                 showingAdd.toggle()
             },
-            .init(title: "Favourites", systemImage: showingFavorites ? "heart.fill" : "heart",
+            .init(title: loc("Favourites"), systemImage: showingFavorites ? "heart.fill" : "heart",
                   tint: showingFavorites ? EspressUTheme.alertText : EspressUTheme.brownDark, isOn: showingFavorites) {
                 showingAdd = false
                 showingFavorites.toggle()
             },
-            .init(title: "Search", systemImage: "magnifyingglass",
+            .init(title: loc("Search"), systemImage: "magnifyingglass",
                   tint: showingSearch ? EspressUTheme.accentText : EspressUTheme.brownDark, isOn: showingSearch) {
                 showingAdd = false
                 showingSearch.toggle()
                 if !showingSearch { searchText = "" }
             },
-            .init(title: !jitPanel.enabled ? "No JIT" : (jitOn ? "JIT on" : "JIT"), systemImage: "bolt.fill",
-                  tint: jitOn && jitPanel.enabled ? Color(hex: "#2E8B57") : EspressUTheme.brownMid, isOn: showingJIT) {
+            .init(title: !jitPanel.enabled ? loc("No JIT") : (jitOn ? loc("JIT on") : loc("JIT")), systemImage: "bolt.fill",
+                  tint: jitOn && jitPanel.enabled ? Color(UIColor.systemGreen) : EspressUTheme.brownMid, isOn: showingJIT) {
                 showingAdd = false
                 openJITPanel()
             },
-            .init(title: "Settings", systemImage: "gearshape.fill", tint: EspressUTheme.brownDark, isOn: false) {
+            .init(title: loc("Settings"), systemImage: "gearshape.fill", tint: EspressUTheme.brownDark, isOn: false) {
                 showingAdd = false
                 actions.openSettings()
             }
@@ -904,12 +1008,12 @@ struct EspressUHomeScreen<Lead: View, GameMenu: View>: View {
 
     private func optionRows(_ game: GameMetadata) -> [OptionRow] {
         [
-            OptionRow(id: "play", title: "Play", systemImage: "play.fill") { actions.play(game) },
-            OptionRow(id: "favourite", title: game.isFavorite ? "Remove from favourites" : "Add to favourites",
+            OptionRow(id: "play", title: loc("Play"), systemImage: "play.fill") { actions.play(game) },
+            OptionRow(id: "favourite", title: game.isFavorite ? loc("Remove from favourites") : loc("Add to favourites"),
                       systemImage: game.isFavorite ? "heart.slash" : "heart") { actions.toggleFavorite(game) },
-            OptionRow(id: "page", title: "Game page", systemImage: "info.circle", opensScreen: true) { actions.openGamePage(game) },
-            OptionRow(id: "rename", title: "Rename", systemImage: "pencil", opensScreen: true) { actions.renameGame(game) },
-            OptionRow(id: "cover", title: "Change cover", systemImage: "photo", opensScreen: true) { actions.changeCover(game) },
+            OptionRow(id: "page", title: loc("Game page"), systemImage: "info.circle", opensScreen: true) { actions.openGamePage(game) },
+            OptionRow(id: "rename", title: loc("Rename"), systemImage: "pencil", opensScreen: true) { actions.renameGame(game) },
+            OptionRow(id: "cover", title: loc("Change cover"), systemImage: "photo", opensScreen: true) { actions.changeCover(game) },
             OptionRow(id: "remove", title: game.removeActionTitle, systemImage: "trash", destructive: true, confirm: true) {
                 actions.removeGame(game)
             }
@@ -954,13 +1058,13 @@ struct EspressUHomeScreen<Lead: View, GameMenu: View>: View {
                 EspressUCover(game: game, radius: 16)
                     .frame(width: 64, height: 64)
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(game.cardName.name)
-                        .font(.system(size: 19, weight: .heavy, design: .rounded))
+                    Text(loc(game.cardName.name))
+                        .font(.headline)
                         .foregroundColor(EspressUTheme.brownDarkest)
                         .lineLimit(2)
                     if let install = game.installLabel {
-                        Text(install)
-                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                        Text(loc(install))
+                            .font(.footnote.weight(.medium))
                             .foregroundColor(EspressUTheme.brownMid)
                             .lineLimit(1)
                     }
@@ -978,7 +1082,7 @@ struct EspressUHomeScreen<Lead: View, GameMenu: View>: View {
                     .foregroundColor(EspressUTheme.brownMid)
                     .padding(.horizontal, pad.showsFocus ? 12 : 0)
                     .frame(minWidth: 36, minHeight: 36)
-                    .background(EspressUTheme.wrapper.opacity(0.6), in: Capsule())
+                    .espressUSurface(Capsule())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Close")
@@ -1000,8 +1104,8 @@ struct EspressUHomeScreen<Lead: View, GameMenu: View>: View {
                                 .background(index == 0 ? AnyShapeStyle(EspressUTheme.cremaTopGradient)
                                                        : AnyShapeStyle(EspressUTheme.wrapper),
                                             in: RoundedRectangle(cornerRadius: 11, style: .continuous))
-                            Text(armed ? "Press again to remove" : row.title)
-                                .font(.system(size: 17, weight: .bold, design: .rounded))
+                            Text(loc(armed ? "Press again to remove" : row.title))
+                                .font(.body.weight(.semibold))
                                 .foregroundColor(row.destructive ? EspressUTheme.alertText : EspressUTheme.brownDarkest)
                             Spacer(minLength: 0)
                             if focused && index == 0 {
@@ -1018,7 +1122,7 @@ struct EspressUHomeScreen<Lead: View, GameMenu: View>: View {
                                       : EspressUTheme.pixelBlue.opacity(focused ? 0.1 : 0)))
                         .overlay(
                             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .strokeBorder(EspressUTheme.pixelBlue, lineWidth: 3)
+                                .strokeBorder(EspressUTheme.pixelBlue, lineWidth: 2)
                                 .opacity(focused ? 1 : 0))
                         .contentShape(Rectangle())
                     }
@@ -1064,24 +1168,24 @@ struct EspressUHomeScreen<Lead: View, GameMenu: View>: View {
 
     private var addGroups: [(String, [AddOption])] {
         [
-            ("Add games", [
-                AddOption(id: "file", title: "Game file", detail: "A .wua, .wux, .wud or .rpx",
+            (loc("Add games"), [
+                AddOption(id: "file", title: loc("Game file"), detail: loc("A .wua, .wux, .wud or .rpx"),
                           systemImage: "doc.fill", action: actions.importFile),
-                AddOption(id: "folder", title: "Game folder", detail: "A dumped game folder",
+                AddOption(id: "folder", title: loc("Game folder"), detail: loc("A dumped game folder"),
                           systemImage: "folder.fill", action: { importerPurpose = .gameFolder; importerMode = .gameFolder }),
-                AddOption(id: "romsInFiles", title: "Roms folder in Files", detail: "Drag games in, then come back",
+                AddOption(id: "romsInFiles", title: loc("Roms folder in Files"), detail: loc("Drag games in, then come back"),
                           systemImage: "folder.badge.plus", action: { Self.openInFiles(Self.documentsFolder("Roms")) })
             ]),
-            ("Keep games where they are", [
-                AddOption(id: "linkFolder", title: "Link a folder", detail: "Drive, SD card or iCloud. Nothing is copied",
+            (loc("Keep games where they are"), [
+                AddOption(id: "linkFolder", title: loc("Link a folder"), detail: loc("Drive, SD card or iCloud. Nothing is copied"),
                           systemImage: "externaldrive.fill.badge.plus", action: actions.linkFolder),
-                AddOption(id: "linkFile", title: "Link a game file", detail: "Play it right where it is",
+                AddOption(id: "linkFile", title: loc("Link a game file"), detail: loc("Play it right where it is"),
                           systemImage: "link", action: actions.linkFile)
             ]),
-            ("Updates, DLC and keys", [
-                AddOption(id: "update", title: "Update", detail: "A folder or .wua for a game you have",
+            (loc("Updates, DLC and keys"), [
+                AddOption(id: "update", title: loc("Update"), detail: loc("A folder or .wua for a game you have"),
                           systemImage: "arrow.triangle.2.circlepath", action: { importerPurpose = .content(.update); importerMode = .content(.update) }),
-                AddOption(id: "dlc", title: "DLC", detail: "A folder or .wua for a game you have",
+                AddOption(id: "dlc", title: loc("DLC"), detail: loc("A folder or .wua for a game you have"),
                           systemImage: "shippingbox.fill", action: { importerPurpose = .content(.dlc); importerMode = .content(.dlc) }),
                 AddOption(id: "keys", title: "Keys", detail: "keys.txt for encrypted games",
                           systemImage: "key.fill", action: actions.importKeys)
@@ -1108,10 +1212,10 @@ struct EspressUHomeScreen<Lead: View, GameMenu: View>: View {
             HStack(alignment: .center) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Add to EspressU")
-                        .font(.system(size: 22, weight: .heavy, design: .rounded))
+                        .font(.title3.weight(.semibold))
                         .foregroundColor(EspressUTheme.brownDarkest)
                     Text("Games, updates, DLC and keys")
-                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                        .font(.subheadline.weight(.medium))
                         .foregroundColor(EspressUTheme.brownMid)
                 }
                 Spacer()
@@ -1120,7 +1224,7 @@ struct EspressUHomeScreen<Lead: View, GameMenu: View>: View {
                         .font(.system(size: 15, weight: .bold))
                         .foregroundColor(EspressUTheme.brownMid)
                         .frame(width: 38, height: 38)
-                        .background(EspressUTheme.wrapper.opacity(0.6), in: Circle())
+                        .espressUSurface(Circle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Close")
@@ -1129,8 +1233,8 @@ struct EspressUHomeScreen<Lead: View, GameMenu: View>: View {
                 VStack(alignment: .leading, spacing: 18) {
                     ForEach(addGroups, id: \.0) { group in
                         VStack(alignment: .leading, spacing: 6) {
-                            Text(group.0.uppercased())
-                                .font(.system(size: 12, weight: .heavy, design: .rounded))
+                            Text(loc(group.0.uppercased()))
+                                .font(.caption.weight(.semibold))
                                 .tracking(0.6)
                                 .foregroundColor(EspressUTheme.brownMid)
                                 .padding(.horizontal, 6)
@@ -1138,18 +1242,17 @@ struct EspressUHomeScreen<Lead: View, GameMenu: View>: View {
                                 ForEach(Array(group.1.enumerated()), id: \.element.id) { index, option in
                                     if index > 0 {
                                         Rectangle()
-                                            .fill(EspressUTheme.wrapper)
-                                            .frame(height: 1)
+                                            .fill(EspressUTheme.hairline)
+                                            .frame(height: EspressUTheme.hairlineWidth)
                                             .padding(.leading, 62)
                                     }
                                     addRow(option)
                                 }
                             }
-                            .background(EspressUTheme.cream.opacity(0.85), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-                            .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(EspressUTheme.wrapper, lineWidth: 1))
-                            if group.0 == "Updates, DLC and keys" {
+                            .espressUSurface(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                            if group.0 == loc("Updates, DLC and keys") {
                                 Text("You can also drop updates and DLC into Files \u{203A} EspressU \u{203A} Updates & DLC.")
-                                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                                    .font(.caption.weight(.medium))
                                     .foregroundColor(EspressUTheme.brownMid)
                                     .padding(.horizontal, 6)
                                     .fixedSize(horizontal: false, vertical: true)
@@ -1184,11 +1287,11 @@ struct EspressUHomeScreen<Lead: View, GameMenu: View>: View {
                     .frame(width: 38, height: 38)
                     .background(EspressUTheme.cremaTopGradient, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(option.title)
-                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                    Text(loc(option.title))
+                        .font(.body.weight(.semibold))
                         .foregroundColor(EspressUTheme.brownDarkest)
-                    Text(option.detail)
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                    Text(loc(option.detail))
+                        .font(.footnote.weight(.medium))
                         .foregroundColor(EspressUTheme.brownMid)
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
@@ -1310,8 +1413,8 @@ struct EspressUMenuBar: View {
                 .font(.system(size: compact ? 19 : 21, weight: .semibold))
                 .foregroundColor(item.tint)
             if !compact {
-                Text(item.title)
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                Text(loc(item.title))
+                    .font(.caption2.weight(.semibold))
                     .foregroundColor(highlighted || item.isOn ? item.tint : EspressUTheme.brownMid)
             }
         }
@@ -1363,32 +1466,42 @@ struct EspressUCover: View {
     }
 }
 
-struct EspressUBackground: View {
+/// The page ground with the game's cover blurred underneath, so glass cards on game pages have
+/// something to refract. Weaker than the home backdrop so forms stay calm.
+struct EspressUCoverGround: View {
+    let coverPath: String?
+    @Environment(\.colorScheme) private var colorScheme
+
     var body: some View {
         ZStack {
-            EspressUTheme.backgroundGradient
-            Canvas { context, size in
-                var y: CGFloat = 38
-                while y < size.height {
-                    context.fill(Path(CGRect(x: 0, y: y, width: size.width, height: 1)),
-                                 with: .color(EspressUTheme.brownDarkest.opacity(0.018)))
-                    y += 40
-                }
+            EspressUTheme.formGround
+            if let coverPath {
+                CoverImage(path: coverPath, fill: true)
+                    .frame(width: 160, height: 160)
+                    .blur(radius: 9)
+                    .saturation(0.6)
+                    .scaleEffect(max(UIScreen.main.bounds.width, UIScreen.main.bounds.height) / 160 * 1.6)
+                    .opacity(colorScheme == .dark ? 0.22 : 0.38)
             }
         }
         .ignoresSafeArea()
+        .allowsHitTesting(false)
+    }
+}
+
+struct EspressUBackground: View {
+    var body: some View {
+        EspressUTheme.formGround.ignoresSafeArea()
     }
 }
 
 extension View {
-    @ViewBuilder func espressUSurface<S: Shape>(_ shape: S) -> some View {
-        if #available(iOS 26.0, *), UIStyle.allowsLiquidGlass {
-            self.glassEffect(.regular, in: shape)
+    /// Liquid Glass on iOS 26, a system material before that. `clear` is the more see-through variant.
+    @ViewBuilder func espressUSurface<S: Shape>(_ shape: S, clear: Bool = false) -> some View {
+        if #available(iOS 26.0, *) {
+            self.glassEffect(clear ? .clear : .regular, in: shape)
         } else {
-            self
-                .background(EspressUTheme.cream, in: shape)
-                .overlay(shape.stroke(EspressUTheme.wrapper, lineWidth: 1))
-                .shadow(color: EspressUTheme.shadow.opacity(0.2), radius: 12, y: 4)
+            self.background(clear ? .thinMaterial : .regularMaterial, in: shape)
         }
     }
 }

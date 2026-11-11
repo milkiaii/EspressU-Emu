@@ -22,13 +22,13 @@ enum SettingsBackup {
         var errorDescription: String? {
             switch self {
             case .unreadable:
-                return "That file couldn't be read."
+                return loc("That file couldn't be read.")
             case .notASettingsFile:
-                return "That isn't an EspressU settings file."
+                return loc("That isn't an EspressU settings file.")
             case .newerVersion(let version):
-                return "That file is from a newer EspressU (settings file version \(version)). Update the app, then try again."
+                return locf("That file is from a newer EspressU (settings file version %@). Update the app, then try again.", version)
             case .nothingToImport:
-                return "That file has no settings EspressU can use."
+                return loc("That file has no settings EspressU can use.")
             }
         }
     }
@@ -136,11 +136,10 @@ enum SettingsBackup {
         if !SettingsMode.isAdvanced { AdvancedSettings.clearAdvanced() }
 
         UIStyleStore.shared.reloadFromDefaults()
-        ControllerCustomLayout.shared.reloadFromDefaults()
-        PreviewPadStore.shared.reloadFromDefaults()
         DisplayRouter.shared.reapplyRenderScale(reason: "settings import")
         AdvancedSettings.applyToBridge()
         MotionSettings.applyToBridge()
+        OverlaySettings.applyFrameGenBreakdownToBridge()
         NotificationCenter.default.post(name: .espressuSettingsWereReset, object: nil)
     }
 
@@ -191,7 +190,6 @@ enum SettingsBackup {
 
     private static let allowedStrings: [String: Set<String>] = [
         RenderScale.storageKey: Set(RenderScale.allCases.map(\.rawValue)),
-        MoltenVKBuild.storageKey: Set(MoltenVKBuild.allCases.map(\.rawValue)),
         CoreMode.storageKey: Set(CoreMode.allCases.map(\.rawValue)),
         SettingsMode.storageKey: Set(SettingsMode.allCases.map(\.rawValue)),
         TopBarAutoHide.handleSizeKey: Set(TopBarAutoHide.HandleSize.allCases.map(\.rawValue)),
@@ -200,7 +198,6 @@ enum SettingsBackup {
     ]
 
     private static let allowedInts: [String: ClosedRange<Int>] = [
-        RendererAPI.storageKey: 1...2,
         UpscaleFilterSetting.storageKey: 0...3,
         DownscaleFilterSetting.storageKey: 0...3,
         FullSpeedRenders.shaderModeKey: 0...1,
@@ -212,12 +209,15 @@ enum SettingsBackup {
         OverrideGammaSetting.storageKey: OverrideGammaSetting.minValue...OverrideGammaSetting.maxValue,
         MotionSettings.sensitivityKey: MotionSettings.minSensitivity...MotionSettings.maxSensitivity,
         ControllerLayoutSettings.deadzoneKey: ControllerLayoutSettings.minDeadzone...ControllerLayoutSettings.maxDeadzone,
-        ControllerLayoutSettings.stickCurveKey: ControllerLayoutSettings.minStickCurve...ControllerLayoutSettings.maxStickCurve,
         ControllerLayoutSettings.scaleKey: ControllerLayoutSettings.minScale...ControllerLayoutSettings.maxScale,
         ControllerLayoutSettings.opacityKey: 0.2...1.0,
     ]
 
     private static func isAcceptable(_ value: Any, for key: String) -> Bool {
+        if key == ControllerLayoutSettings.elementsKey {
+            guard let text = value as? String else { return false }
+            return CremaElementOverrides(json: text) != nil
+        }
         if let allowed = allowedStrings[key] {
             guard let text = value as? String else { return false }
             return allowed.contains(text)

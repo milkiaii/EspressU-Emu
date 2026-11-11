@@ -23,19 +23,12 @@ enum ShaderCacheImport {
         [UTType(filenameExtension: "bin"), .data].compactMap { $0 }
     }
 
-    static var selectedRenderer: RendererAPI {
-        RendererAPI(rawValue: UserDefaults.standard.integer(forKey: RendererAPI.storageKey)) ?? RendererAPI.defaultValue
-    }
-
     static func titleId(for game: GameMetadata) -> UInt64? {
         game.titleId ?? GameManager.deriveBaseTitleId(romPath: game.romPath)
     }
 
-    static func pipelineIsVulkan(fileName: String) -> Bool? {
-        let lower = fileName.lowercased()
-        if lower.contains("vkpipeline") { return true }
-        if lower.contains("mtlpipeline") { return false }
-        return nil
+    static func isForeignPipeline(fileName: String) -> Bool {
+        fileName.lowercased().contains("vkpipeline")
     }
 
     static func stage(_ picked: URL) throws -> URL {
@@ -49,14 +42,16 @@ enum ShaderCacheImport {
         return staged
     }
 
-    static func run(kind: Kind, game: GameMetadata, library: [GameMetadata], staged: URL, originalName: String,
-                    pipelineIsVulkan: Bool?) -> Outcome {
+    static func run(kind: Kind, game: GameMetadata, library: [GameMetadata], staged: URL, originalName: String) -> Outcome {
         defer { try? FileManager.default.removeItem(at: staged) }
+        if kind == .pipeline && isForeignPipeline(fileName: originalName) {
+            return Outcome(message: locf("\"%@\" is a pipeline cache from desktop Cemu. EspressU can't use those, only ones named ..._mtlpipeline.bin. Learned shaders from desktop Cemu can still be imported.", originalName), failed: true)
+        }
         guard let titleId = titleId(for: game) else {
-            return Outcome(message: "Couldn't read this game's title ID, so there's no cache to put the file in.", failed: true)
+            return Outcome(message: loc("Couldn't read this game's title ID, so there's no cache to put the file in."), failed: true)
         }
         if cemu_bridge_is_title_running() {
-            return Outcome(message: "Close the game first, then import.", failed: true)
+            return Outcome(message: loc("Close the game first, then import."), failed: true)
         }
         let gameName = game.displayTitle ?? game.title
 
@@ -65,46 +60,44 @@ enum ShaderCacheImport {
 
         switch Int(info.status) {
         case Int(CEMU_CACHE_STATUS_NOT_A_CACHE.rawValue):
-            return Outcome(message: "\"\(originalName)\" isn't a shader cache file, or it's damaged. Pick a .bin file from a Cemu or EspressU shaderCache folder.", failed: true)
+            return Outcome(message: locf("\"%@\" isn't a shader cache file, or it's damaged. Pick a .bin file from a Cemu or EspressU shaderCache folder.", originalName), failed: true)
         case Int(CEMU_CACHE_STATUS_OTHER_GAME.rawValue):
             return Outcome(message: otherGameMessage(stamp: info.stamp, originalName: originalName, gameName: gameName, library: library), failed: true)
         case Int(CEMU_CACHE_STATUS_OLD_FORMAT.rawValue):
-            return Outcome(message: "\"\(originalName)\" is a learned-shader cache from a desktop Cemu older than 1.16, which keyed shaders differently. It can't be converted. Use a cache from Cemu 1.16 or newer, or from EspressU.", failed: true)
+            return Outcome(message: locf("\"%@\" is a learned-shader cache from a desktop Cemu older than 1.16, which keyed shaders differently. It can't be converted. Use a cache from Cemu 1.16 or newer, or from EspressU.", originalName), failed: true)
         case Int(CEMU_CACHE_STATUS_NOTHING_USABLE.rawValue):
-            return Outcome(message: "\"\(originalName)\" is a cache for \(gameName), but none of its \(info.entryCount) entries can be used.", failed: true)
+            return Outcome(message: locf("\"%@\" is a cache for %@, but none of its %@ entries can be used.", originalName, gameName, info.entryCount), failed: true)
         default:
             break
         }
 
         if Int32(info.kind) != kind.bridgeKind {
             return Outcome(message: kind == .shaders
-                ? "\"\(originalName)\" is a pipeline cache, not learned shaders. Use \"Import shader pipeline caches\" for it."
-                : "\"\(originalName)\" is a learned-shader cache, not a pipeline cache. Use \"Import learned shaders\" for it.", failed: true)
+                ? locf("\"%@\" is a pipeline cache, not learned shaders. Use \"Import shader pipeline caches\" for it.", originalName)
+                : locf("\"%@\" is a learned-shader cache, not a pipeline cache. Use \"Import learned shaders\" for it.", originalName), failed: true)
         }
 
-        let renderer = selectedRenderer
         var added: Int32 = 0
         var already: Int32 = 0
         var skipped: Int32 = 0
         let result = staged.path.withCString {
-            cemu_bridge_cache_file_import(titleId, $0, kind.bridgeKind, Int32(renderer.rawValue), pipelineIsVulkan ?? false,
+            cemu_bridge_cache_file_import(titleId, $0, kind.bridgeKind,
                                           &added, &already, &skipped)
         }
         switch Int(result) {
         case Int(CEMU_CACHE_STATUS_OK.rawValue):
             break
         case Int(CEMU_CACHE_STATUS_TITLE_RUNNING.rawValue):
-            return Outcome(message: "Close the game first, then import.", failed: true)
+            return Outcome(message: loc("Close the game first, then import."), failed: true)
         case -2:
             return Outcome(message: "This game's own cache file was saved by a different version of the cache format, so nothing was changed. Clear this game's shaders in its options, then import again.", failed: true)
         case -1:
-            return Outcome(message: "This game's own cache file couldn't be opened or created, so nothing was changed. If storage is full, free some up and try again.", failed: true)
+            return Outcome(message: loc("This game's own cache file couldn't be opened or created, so nothing was changed. If storage is full, free some up and try again."), failed: true)
         default:
-            return Outcome(message: "Couldn't import \"\(originalName)\" (code \(result)). Nothing was changed.", failed: true)
+            return Outcome(message: locf("Couldn't import \"%@\" (code %@). Nothing was changed.", originalName, result), failed: true)
         }
 
-        return Outcome(message: successMessage(kind: kind, added: Int(added), already: Int(already), skipped: Int(skipped),
-                                               renderer: renderer, pipelineIsVulkan: pipelineIsVulkan),
+        return Outcome(message: successMessage(kind: kind, added: Int(added), already: Int(already), skipped: Int(skipped)),
                        failed: false)
     }
 
@@ -113,45 +106,37 @@ enum ShaderCacheImport {
             guard let otherId = titleId(for: other), cemu_bridge_cache_stamp_kind(otherId, stamp) != 0 else { continue }
             let otherName = other.displayTitle ?? other.title
             if otherName != gameName {
-                return "\"\(originalName)\" is a cache for \(otherName), not \(gameName). Nothing was imported."
+                return locf("\"%@\" is a cache for %@, not %@. Nothing was imported.", originalName, otherName, gameName)
             }
         }
         let digits = originalName.prefix(16)
         if digits.count == 16, digits.allSatisfy({ $0.isHexDigit }) {
-            return "\"\(originalName)\" is a cache for another game (title ID \(digits.uppercased())), not \(gameName). Nothing was imported."
+            return locf("\"%@\" is a cache for another game (title ID %@), not %@. Nothing was imported.", originalName, digits.uppercased(), gameName)
         }
-        return "\"\(originalName)\" is a cache for a different game, not \(gameName). Nothing was imported."
+        return locf("\"%@\" is a cache for a different game, not %@. Nothing was imported.", originalName, gameName)
     }
 
-    private static func successMessage(kind: Kind, added: Int, already: Int, skipped: Int,
-                                       renderer: RendererAPI, pipelineIsVulkan: Bool?) -> String {
-        let noun = kind == .shaders ? "shader" : "pipeline"
-        let plural = { (n: Int) in "\(n) \(noun)\(n == 1 ? "" : "s")" }
+    private static func successMessage(kind: Kind, added: Int, already: Int, skipped: Int) -> String {
+        let plural = { (n: Int) in kind == .shaders ? locn(n, "%@ shader", "%@ shaders") : locn(n, "%@ pipeline", "%@ pipelines") }
         var parts: [String] = []
         if added == 0 && skipped == 0 {
-            parts.append("Nothing new: this game already had all \(plural(already)) in that file.")
+            parts.append(locf("Nothing new: this game already had all %@ in that file.", plural(already)))
         } else if added == 0 {
-            parts.append("Nothing was added.")
+            parts.append(loc("Nothing was added."))
         } else {
-            var line = "Added \(plural(added))"
-            if already > 0 { line += " (\(already) already there)" }
+            var line = locf("Added %@", plural(added))
+            if already > 0 { line += locf(" (%@ already there)", already) }
             parts.append(line + ".")
         }
         if skipped > 0 {
-            parts.append("\(skipped) \(skipped == 1 ? "entry was" : "entries were") left out: damaged, not in a usable format, or there wasn't room on this device. If storage is low, free some up and import the file again; entries already added are kept.")
+            parts.append(locn(skipped, "%@ entry was left out: damaged, not in a usable format, or there wasn't room on this device. If storage is low, free some up and import the file again; entries already added are kept.", "%@ entries were left out: damaged, not in a usable format, or there wasn't room on this device. If storage is low, free some up and import the file again; entries already added are kept."))
         }
-        parts.append("The file you picked wasn't changed.")
+        parts.append(loc("The file you picked wasn't changed."))
         switch kind {
         case .shaders:
-            parts.append("Added to the \(renderer == .vulkan ? "Vulkan" : "Metal") shader file. Shaders from desktop Cemu are converted the first time you start the game, which is a normal shader load; after that they load as fast as the game's own.")
+            parts.append(loc("Added to the Metal shader file. Shaders from desktop Cemu are converted the first time you start the game, which is a normal shader load; after that they load as fast as the game's own."))
         case .pipeline:
-            let fileIsVulkan = pipelineIsVulkan ?? false
-            let fileRenderer: RendererAPI = fileIsVulkan ? .vulkan : .metal
-            if fileRenderer != renderer {
-                parts.append("This is a \(fileIsVulkan ? "Vulkan" : "Metal") pipeline cache and the renderer is set to \(renderer == .vulkan ? "Vulkan" : "Metal"), so it won't be used until you switch in Settings > Graphics. It's saved under its own name and will be picked up then.")
-            } else {
-                parts.append("It's used the next time you start the game.")
-            }
+            parts.append(loc("It's used the next time you start the game."))
             parts.append("A pipeline only loads when the shaders it uses are in the game's learned shaders, so import those too.")
         }
         return parts.joined(separator: " ")

@@ -14,21 +14,21 @@ struct AboutSettingsSection: View {
 
     var body: some View {
         Section {
-            SettingsRow(label: "Version", value: Bundle.main.appVersionString, icon: "number")
-            SettingsRow(label: "Created by", value: "Amar", icon: "person.fill")
+            SettingsRow(label: loc("Version"), value: Bundle.main.appVersionString, icon: "number")
+            SettingsRow(label: loc("Created by"), value: loc("Amar"), icon: "person.fill")
             Link(destination: URL(string: "https://github.com/EspressU/EspressU-Emu")!) {
                 Label("View on GitHub", systemImage: "arrow.up.right.square")
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .font(.subheadline.weight(.semibold))
             }
             Link(destination: URL(string: "https://discord.gg/espressu")!) {
                 Label("Join the Discord", systemImage: "bubble.left.and.bubble.right")
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .font(.subheadline.weight(.semibold))
             }
             NavigationLink {
                 OpenSourceLicencesView()
             } label: {
                 Label("Open-source licences", systemImage: "doc.text")
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .font(.subheadline.weight(.semibold))
             }
 
             Text("EspressU is built on Cemu and based on [MuffinEMU](https://github.com/MuffinEMU/Muffin-EMU) by Void.")
@@ -42,27 +42,27 @@ struct AboutSettingsSection: View {
             Button(role: .destructive) {
                 showingResetConfirmation = true
             } label: {
-                DestructiveSettingsLabel(title: "Reset settings to defaults", systemImage: "arrow.counterclockwise")
+                DestructiveSettingsLabel(title: loc("Reset settings to defaults"), systemImage: "arrow.counterclockwise")
             }
 
             if let resetMessage {
-                Text(resetMessage)
+                Text(loc(resetMessage))
                     .font(.system(size: 12))
                     .foregroundColor(EspressUTheme.secondaryText)
             }
         } header: {
-            SettingsSectionHeader("About", icon: "info.circle", accent: .system)
+            SettingsSectionHeader(loc("About"), icon: "info.circle", accent: .system)
         }
         .foregroundColor(EspressUTheme.brownDarkest)
         .confirmationDialog("Reset settings to defaults?", isPresented: $showingResetConfirmation, titleVisibility: .visible) {
             Button("Reset Settings", role: .destructive) {
                 SettingsDefaults.reset(includingPerGameOverrides: false)
-                resetMessage = "Settings reset to defaults."
+                resetMessage = loc("Settings reset to defaults.")
                 NotificationCenter.default.post(name: .espressuReopenOnboarding, object: nil)
             }
             Button("Reset Settings and Per-Game Options", role: .destructive) {
                 SettingsDefaults.reset(includingPerGameOverrides: true)
-                resetMessage = "Settings and per-game options reset to defaults."
+                resetMessage = loc("Settings and per-game options reset to defaults.")
                 NotificationCenter.default.post(name: .espressuReopenOnboarding, object: nil)
             }
             Button("Cancel", role: .cancel) { }

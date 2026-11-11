@@ -41,7 +41,7 @@ struct SettingsSectionHeader: View {
 
     var body: some View {
         if UIStyle.isClassic {
-            Text(title)
+            Text(loc(title))
                 .textCase(nil)
                 .accessibilityAddTraits(.isHeader)
         } else {
@@ -60,8 +60,8 @@ struct SettingsSectionHeader: View {
                         .fill(accent.color.opacity(0.16))
                 )
 
-            Text(title)
-                .font(.system(size: 13, weight: .bold, design: .rounded))
+            Text(loc(title))
+                .font(.footnote.weight(.semibold))
                 .foregroundColor(EspressUTheme.brownDark)
                 .textCase(nil)
 

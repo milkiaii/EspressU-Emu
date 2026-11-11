@@ -24,20 +24,20 @@ struct LinkedLocationsRows: View {
                 beginLink(contentTypes: [.folder])
             } label: {
                 Label("Link a folder\u{2026}", systemImage: "externaldrive.badge.plus")
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .font(.subheadline.weight(.semibold))
             }
             Button {
                 beginLink(contentTypes: [.item])
             } label: {
                 Label("Link a game file\u{2026}", systemImage: "link")
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .font(.subheadline.weight(.semibold))
             }
             Text("Linked games stay where they are. EspressU never copies, moves or deletes them. A game on a drive that isn't connected stays in the library until you plug the drive back in.")
-                .font(.system(size: 12, design: .rounded))
+                .font(.caption)
                 .foregroundColor(EspressUTheme.brownMid)
         }
         .confirmationDialog(
-            "Unlink this location?",
+            loc("Unlink this location?"),
             isPresented: Binding(get: { pendingUnlink != nil }, set: { if !$0 { pendingUnlink = nil } }),
             titleVisibility: .visible,
             presenting: pendingUnlink
@@ -47,12 +47,12 @@ struct LinkedLocationsRows: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: { location in
-            Text("\"\(location.name)\" stops appearing in your library. Nothing on the drive or in the folder is deleted. Your saves and options are kept.")
+            Text(locf("\"%@\" stops appearing in your library. Nothing on the drive or in the folder is deleted. Your saves and options are kept.", location.name))
         }
         .alert("Couldn't link that", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text(errorMessage ?? "")
+            Text(loc(errorMessage ?? ""))
         }
     }
 
@@ -65,26 +65,26 @@ struct LinkedLocationsRows: View {
                     .foregroundColor(EspressUTheme.brownMid)
                     .frame(width: 20)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(location.name)
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    Text(loc(location.name))
+                        .font(.subheadline.weight(.semibold))
                         .fixedSize(horizontal: false, vertical: true)
-                    Text(statusLine(for: location, connected: connected))
-                        .font(.system(size: 12, design: .rounded))
+                    Text(loc(statusLine(for: location, connected: connected)))
+                        .font(.caption)
                         .foregroundColor(connected ? EspressUTheme.brownMid : EspressUTheme.alertText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 8)
                 Button("Unlink") { pendingUnlink = location }
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .font(.subheadline.weight(.semibold))
                     .buttonStyle(.borderless)
                     .frame(minHeight: 44)
-                    .accessibilityLabel("Unlink \(location.name)")
+                    .accessibilityLabel(locf("Unlink %@", location.name))
             }
             if !location.hidden.isEmpty {
-                Button("Show \(location.hidden.count) removed game\(location.hidden.count == 1 ? "" : "s") again") {
+                Button(locn(location.hidden.count, "Show %@ removed game again", "Show %@ removed games again")) {
                     Task { await gameManager.restoreHiddenGames(in: location.id) }
                 }
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .font(.footnote.weight(.semibold))
                 .buttonStyle(.borderless)
             }
         }
@@ -93,7 +93,7 @@ struct LinkedLocationsRows: View {
     private func statusLine(for location: LinkedLocation, connected: Bool) -> String {
         if !connected { return ExternalLibrary.unavailableMessage }
         let count = location.games.count
-        return count == 1 ? "Connected, 1 game" : "Connected, \(count) games"
+        return count == 1 ? loc("Connected, 1 game") : locf("Connected, %@ games", count)
     }
 
     private func beginLink(contentTypes: [UTType]) {

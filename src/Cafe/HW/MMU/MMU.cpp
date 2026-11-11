@@ -704,18 +704,6 @@ uint32 memory_getVirtualOffsetFromPointer(void* ptr)
 	return memory_reverseTranslate(ptr);
 }
 
-uint8* memory_getPointerFromVirtualOffset(uint32 virtualOffset)
-{
-	return memory_translate(virtualOffset);
-}
-
-uint8* memory_getPointerFromVirtualOffsetAllowNull(uint32 virtualOffset)
-{
-	if( virtualOffset == MPTR_NULL )
-		return nullptr;
-	return memory_getPointerFromVirtualOffset(virtualOffset);
-}
-
 void memory_writeDouble(uint32 address, double vf)
 {
 	uint64 v = *(uint64*)&vf;

@@ -16,9 +16,9 @@ struct SettingsRow: View {
     var body: some View {
         if UIStyle.isClassic {
             HStack {
-                Text(label)
+                Text(loc(label))
                 Spacer(minLength: 12)
-                Text(value)
+                Text(loc(value))
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.trailing)
             }
@@ -36,13 +36,13 @@ struct SettingsRow: View {
                     .frame(width: 20)
             }
 
-            Text(label)
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
+            Text(loc(label))
+                .font(.subheadline.weight(.semibold))
 
             Spacer(minLength: 12)
 
-            Text(value)
-                .font(.system(size: 15, design: .rounded))
+            Text(loc(value))
+                .font(.subheadline)
                 .foregroundColor(EspressUTheme.brownMid)
                 .multilineTextAlignment(.trailing)
         }
@@ -56,11 +56,11 @@ struct DestructiveSettingsLabel: View {
 
     var body: some View {
         if UIStyle.isClassic {
-            Label(title, systemImage: systemImage)
+            Label(loc(title), systemImage: systemImage)
                 .foregroundColor(.red)
         } else {
-            Label(title, systemImage: systemImage)
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
+            Label(loc(title), systemImage: systemImage)
+                .font(.subheadline.weight(.semibold))
                 .foregroundColor(.red)
         }
     }

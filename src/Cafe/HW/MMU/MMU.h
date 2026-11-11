@@ -15,8 +15,6 @@ void memory_logModifiedMemoryRanges();
 void memory_enableOverlayArena();
 void memory_enableHBLELFCodeArea();
 uint32 memory_getVirtualOffsetFromPointer(void* ptr);
-uint8* memory_getPointerFromVirtualOffset(uint32 virtualOffset);
-uint8* memory_getPointerFromVirtualOffsetAllowNull(uint32 virtualOffset);
 
 uint8* memory_getPointerFromPhysicalOffset(uint32 physicalOffset);
 
@@ -26,6 +24,19 @@ bool memory_isGuestRangeReserved(uint32 address, uint32 size);
 
 uint32 memory_virtualToPhysical(uint32 virtualOffset);
 uint32 memory_physicalToVirtual(uint32 physicalOffset);
+
+// inline: called on every emulated memory access by the interpreter (goes through the page table in page-table mode)
+inline uint8* memory_getPointerFromVirtualOffset(uint32 virtualOffset)
+{
+	return memory_translate(virtualOffset);
+}
+
+inline uint8* memory_getPointerFromVirtualOffsetAllowNull(uint32 virtualOffset)
+{
+	if (virtualOffset == 0)
+		return nullptr;
+	return memory_translate(virtualOffset);
+}
 
 enum class MMU_MEM_AREA_ID
 {

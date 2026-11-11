@@ -29,7 +29,7 @@ xcodebuild archive \
   -destination 'generic/platform=iOS' \
   -archivePath "$WORK/StikJIT-iOS" \
   SKIP_INSTALL=NO \
-  BUILD_LIBRARY_FOR_DISTRIBUTION=YES \
+  BUILD_LIBRARY_FOR_DISTRIBUTION="${STIKJIT_LIBRARY_EVOLUTION:-YES}" \
   OTHER_SWIFT_FLAGS="-Xfrontend -module-interface-preserve-types-as-written" \
   CODE_SIGNING_ALLOWED=NO
 
@@ -46,8 +46,12 @@ cp "$WORK/stikjit/idevice/libidevice_ffi.a" "$WORK/stikjit/idevice/idevice.h" "$
 sed -i '' 's/libplist_version();/libplist_version(void);/' "$IDEVICE_OUT/idevice.h"
 
 rm -rf "$OUT"
+# Without library evolution there is no swiftinterface, so the xcframework must allow the binary module.
+EXTRA=()
+if [ "${STIKJIT_LIBRARY_EVOLUTION:-YES}" = NO ]; then EXTRA=(-allow-internal-distribution); fi
 xcodebuild -create-xcframework \
   -framework "$FRAMEWORK" \
+  ${EXTRA[@]+"${EXTRA[@]}"} \
   -output "$OUT"
 echo "$STIKJIT_COMMIT" > "$STAMP"
 echo "Built $OUT at $STIKJIT_COMMIT"

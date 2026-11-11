@@ -16,8 +16,8 @@ enum SettingsMode: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .basic:    return "Basic"
-        case .advanced: return "Advanced"
+        case .basic:    return loc("Basic")
+        case .advanced: return loc("Advanced")
         }
     }
 
@@ -88,8 +88,6 @@ enum AdvancedSettings {
     }
 
     private static let rendererAndFilters = AdvancedGroup(name: "Renderer and filters", settings: [
-        AdvancedSetting(RendererAPI.storageKey, RendererAPI.defaultValue.rawValue),
-        AdvancedSetting(MoltenVKBuild.storageKey, MoltenVKBuild.defaultValue.rawValue),
         AdvancedSetting(UpscaleFilterSetting.storageKey, UpscaleFilterSetting.defaultValue.rawValue),
         AdvancedSetting(DownscaleFilterSetting.storageKey, DownscaleFilterSetting.defaultValue.rawValue),
     ], applyToBridge: nil)

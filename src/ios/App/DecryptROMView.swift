@@ -32,7 +32,7 @@ enum DecryptFormat {
     case wua
 
     var toWua: Bool { self == .wua }
-    var navigationTitle: String { self == .wua ? "Decrypt to WUA" : "Decrypt to Folder" }
+    var navigationTitle: String { self == .wua ? loc("Decrypt to WUA") : loc("Decrypt to Folder") }
 }
 
 struct DecryptROMView: View {
@@ -46,7 +46,7 @@ struct DecryptROMView: View {
     @State private var externalHold: ExternalLibrary.Hold?
 
     var body: some View {
-        NavigationView {
+        EspressUNavigation {
             Group {
                 if let chosenFormat = format {
                     decryptingBody(chosenFormat)
@@ -55,7 +55,6 @@ struct DecryptROMView: View {
                 }
             }
         }
-        .navigationViewStyle(.stack)
         .onDisappear {
             if format != nil && !progress.completed { cemu_bridge_cancel_decrypt() }
             stopPolling()
@@ -72,24 +71,24 @@ struct DecryptROMView: View {
                 Image(systemName: "lock.open.fill")
                     .font(.system(size: 40))
                     .foregroundColor(EspressUTheme.onBackgroundAccent)
-                Text("Decrypt \(game.title)")
-                    .font(.system(size: 18, weight: .semibold, design: .rounded))
+                Text(locf("Decrypt %@", game.title))
+                    .font(.headline)
                     .foregroundColor(EspressUTheme.onBackground)
                     .multilineTextAlignment(.center)
                 Text("Your original file isn't changed.")
-                    .font(.system(size: 13, design: .rounded))
+                    .font(.footnote)
                     .foregroundColor(EspressUTheme.onBackgroundMuted)
 
                 VStack(spacing: 12) {
                     formatChoice(
-                        title: "Decrypt to Folder",
+                        title: loc("Decrypt to Folder"),
                         detail: "A folder you can import and play directly.",
                         systemImage: "folder.fill"
                     ) { format = .rawSource }
 
                     formatChoice(
-                        title: "Decrypt to WUA",
-                        detail: "A single .wua file that's easy to move around.",
+                        title: loc("Decrypt to WUA"),
+                        detail: loc("A single .wua file that's easy to move around."),
                         systemImage: "doc.zipper"
                     ) { format = .wua }
                 }
@@ -124,11 +123,11 @@ struct DecryptROMView: View {
                         .accessibilityHidden(true)
 
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(title)
-                            .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        Text(loc(title))
+                            .font(.subheadline.weight(.semibold))
                             .foregroundColor(EspressUTheme.brownDarkest)
-                        Text(detail)
-                            .font(.system(size: 12, design: .rounded))
+                        Text(loc(detail))
+                            .font(.caption)
                             .foregroundColor(EspressUTheme.brownMid)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -159,23 +158,23 @@ struct DecryptROMView: View {
                             Image(systemName: progress.isSuccess ? "checkmark.circle.fill" : "xmark.circle.fill")
                                 .font(.system(size: 44))
                                 .foregroundColor(progress.isSuccess ? .green : EspressUTheme.alertText)
-                            Text(progress.isSuccess ? "Decrypted" : "Couldn't Finish")
-                                .font(.system(size: 18, weight: .semibold, design: .rounded))
+                            Text(loc(progress.isSuccess ? "Decrypted" : "Couldn't Finish"))
+                                .font(.headline)
                                 .foregroundColor(EspressUTheme.brownDarkest)
                             if progress.isSuccess {
                                 Text("\(progress.filesWritten) files, \(byteCountFormatted(progress.bytesWritten))")
-                                    .font(.system(size: 13, design: .rounded))
+                                    .font(.footnote)
                                     .foregroundColor(EspressUTheme.brownMid)
-                                Text(chosenFormat.toWua
-                                    ? "Saved to Files \u{2192} On My iPad/iPhone \u{2192} EspressU \u{2192} Decrypted \u{2192} \(game.id).wua"
-                                    : "Saved to Files \u{2192} On My iPad/iPhone \u{2192} EspressU \u{2192} Decrypted \u{2192} \(game.title)")
-                                    .font(.system(size: 12, design: .rounded))
+                                Text(loc(chosenFormat.toWua
+                                    ? locf("Saved to Files \u{2192} On My iPad/iPhone \u{2192} EspressU \u{2192} Decrypted \u{2192} %@.wua", game.id)
+                                    : locf("Saved to Files \u{2192} On My iPad/iPhone \u{2192} EspressU \u{2192} Decrypted \u{2192} %@", game.title)))
+                                    .font(.caption)
                                     .foregroundColor(EspressUTheme.brownMid)
                                     .multilineTextAlignment(.center)
                                     .padding(.horizontal, 24)
                             } else {
-                                Text(failureReason(for: progress.resultStatus))
-                                    .font(.system(size: 13, design: .rounded))
+                                Text(loc(failureReason(for: progress.resultStatus)))
+                                    .font(.footnote)
                                     .foregroundColor(EspressUTheme.brownMid)
                                     .multilineTextAlignment(.center)
                                     .padding(.horizontal, 24)
@@ -183,16 +182,16 @@ struct DecryptROMView: View {
                         } else {
                             ProgressView()
                                 .scaleEffect(1.3)
-                            Text("Decrypting \(game.title)\u{2026}")
-                                .font(.system(size: 16, weight: .medium, design: .rounded))
+                            Text(locf("Decrypting %@\u{2026}", game.title))
+                                .font(.body.weight(.medium))
                                 .foregroundColor(EspressUTheme.brownDarkest)
                                 .multilineTextAlignment(.center)
-                            Text("\(progress.filesWritten) files, \(byteCountFormatted(progress.bytesWritten)) written")
-                                .font(.system(size: 13, design: .rounded))
+                            Text(locf("%@ files, %@ written", progress.filesWritten, byteCountFormatted(progress.bytesWritten)))
+                                .font(.footnote)
                                 .foregroundColor(EspressUTheme.brownMid)
                                 .monospacedDigit()
                             Text("Your original file isn't changed.")
-                                .font(.system(size: 12, design: .rounded))
+                                .font(.caption)
                                 .foregroundColor(EspressUTheme.brownMid)
                         }
                     }
@@ -214,7 +213,7 @@ struct DecryptROMView: View {
             }
             .padding()
         }
-        .navigationTitle(chosenFormat.navigationTitle)
+        .navigationTitle(loc(chosenFormat.navigationTitle))
         .espressuOpaqueNavigationBar()
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
@@ -273,15 +272,15 @@ struct DecryptROMView: View {
 
     private func failureReason(for status: Int32) -> String {
         switch status {
-        case 1: return "Couldn't open this file - it may not be a valid disc image."
+        case 1: return loc("Couldn't open this file - it may not be a valid disc image.")
         case 2: return "No matching key in keys.txt for this disc. Import the right key and try again."
-        case 3: return "Couldn't write the decrypted output."
-        case 4: return "Cancelled."
-        case 6: return "This game folder is missing a readable title.tmd or title.tik, which EspressU needs to decrypt it."
-        case 7: return "EspressU couldn't decrypt this game folder. Its title.tik doesn't unlock the .app files - check that title.tmd, title.tik and the .app files are from the same download."
-        case 8: return "This game folder is missing one or more .app files listed in its title.tmd."
-        case 5: return "Some files couldn't be copied, so the decrypted copy is incomplete. Your original wasn't changed. Free up some space and try again."
-        default: return "Decryption couldn't start."
+        case 3: return loc("Couldn't write the decrypted output.")
+        case 4: return loc("Cancelled.")
+        case 6: return loc("This game folder is missing a readable title.tmd or title.tik, which EspressU needs to decrypt it.")
+        case 7: return loc("EspressU couldn't decrypt this game folder. Its title.tik doesn't unlock the .app files - check that title.tmd, title.tik and the .app files are from the same download.")
+        case 8: return loc("This game folder is missing one or more .app files listed in its title.tmd.")
+        case 5: return loc("Some files couldn't be copied, so the decrypted copy is incomplete. Your original wasn't changed. Free up some space and try again.")
+        default: return loc("Decryption couldn't start.")
         }
     }
 }

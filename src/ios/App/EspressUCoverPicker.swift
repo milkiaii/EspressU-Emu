@@ -37,8 +37,7 @@ struct EspressUCoverPicker: View {
         GeometryReader { geo in
             let wide = geo.size.width >= 600
             ZStack {
-                EspressUBackground()
-                    .ignoresSafeArea()
+                EspressUCoverGround(coverPath: gameManager.games.first { $0.id == game.id }?.coverPath ?? game.coverPath)
                 ScrollViewReader { proxy in
                     ScrollView {
                         VStack(spacing: 24) {
@@ -72,12 +71,12 @@ struct EspressUCoverPicker: View {
         .fileImporter(isPresented: $showingFiles, allowedContentTypes: [.image]) { result in
             switch result {
             case .failure(let error):
-                errorMessage = "Couldn't import that file: \(error.localizedDescription)"
+                errorMessage = locf("Couldn't import that file: %@", error.localizedDescription)
             case .success(let url):
                 let accessed = url.startAccessingSecurityScopedResource()
                 defer { if accessed { url.stopAccessingSecurityScopedResource() } }
                 guard let data = try? Data(contentsOf: url) else {
-                    errorMessage = "Couldn't read that file."
+                    errorMessage = loc("Couldn't read that file.")
                     return
                 }
                 usePicked(data)
@@ -91,7 +90,7 @@ struct EspressUCoverPicker: View {
         )) {
             Button("OK", role: .cancel) { errorMessage = nil }
         } message: {
-            Text(errorMessage ?? "")
+            Text(loc(errorMessage ?? ""))
         }
     }
 
@@ -99,13 +98,13 @@ struct EspressUCoverPicker: View {
         VStack(spacing: 14) {
             EspressUCover(game: live, radius: 28)
                 .frame(width: 170, height: 170)
-                .shadow(color: EspressUTheme.shadow.opacity(0.3), radius: 16, y: 8)
+                .shadow(color: EspressUTheme.shadow.opacity(0.15), radius: 16, y: 8)
             VStack(spacing: 4) {
                 Text("Cover")
-                    .font(.system(size: 28, weight: .heavy, design: .rounded))
+                    .font(.title.weight(.bold))
                     .foregroundColor(EspressUTheme.brownDarkest)
-                Text(hasOverride ? "\(live.cardName.name) uses your own cover." : "\(live.cardName.name) uses the automatic cover.")
-                    .font(.system(size: 15, design: .rounded))
+                Text(loc(hasOverride ? locf("%@ uses your own cover.", live.cardName.name) : locf("%@ uses the automatic cover.", live.cardName.name)))
+                    .font(.subheadline)
                     .foregroundColor(EspressUTheme.brownMid)
                     .multilineTextAlignment(.center)
             }
@@ -115,15 +114,15 @@ struct EspressUCoverPicker: View {
     private func sources(wide: Bool) -> some View {
         let columns = Array(repeating: GridItem(.flexible(), spacing: 14), count: wide ? (hasOverride ? 3 : 2) : 2)
         return LazyVGrid(columns: columns, spacing: 14) {
-            sourceTile(id: "photos", title: "Photos", detail: "Pick an image", symbol: "photo.on.rectangle") {
+            sourceTile(id: "photos", title: loc("Photos"), detail: loc("Pick an image"), symbol: "photo.on.rectangle") {
                 showingPhotos = true
             }
-            sourceTile(id: "files", title: "Files", detail: "iCloud or this iPad", symbol: "folder.fill") {
+            sourceTile(id: "files", title: loc("Files"), detail: loc("iCloud or this iPad"), symbol: "folder.fill") {
                 showingFiles = true
             }
             if hasOverride {
-                sourceTile(id: "automatic", title: armed == "automatic" ? "Press again" : "Automatic",
-                           detail: "Remove your cover", symbol: "arrow.uturn.backward", destructive: true) {
+                sourceTile(id: "automatic", title: armed == "automatic" ? loc("Press again") : loc("Automatic"),
+                           detail: loc("Remove your cover"), symbol: "arrow.uturn.backward", destructive: true) {
                     EspressURowLogic.press("automatic", confirm: true, armed: $armed) {
                         gameManager.removeManualCover(forGameID: game.id)
                     }
@@ -142,17 +141,16 @@ struct EspressUCoverPicker: View {
                 Image(systemName: symbol)
                     .font(.system(size: 26, weight: .semibold))
                     .foregroundColor(destructive ? EspressUTheme.alertText : EspressUTheme.accentText)
-                Text(title)
-                    .font(.system(size: 17, weight: .bold, design: .rounded))
+                Text(loc(title))
+                    .font(.body.weight(.semibold))
                     .foregroundColor(EspressUTheme.brownDarkest)
-                Text(detail)
-                    .font(.system(size: 13, design: .rounded))
+                Text(loc(detail))
+                    .font(.footnote)
                     .foregroundColor(EspressUTheme.brownMid)
                     .multilineTextAlignment(.center)
             }
             .frame(maxWidth: .infinity, minHeight: 118)
-            .background(EspressUTheme.cream, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(EspressUTheme.wrapper, lineWidth: 1))
+            .espressUSurface(RoundedRectangle(cornerRadius: 20, style: .continuous))
         }
         .buttonStyle(.plain)
         .espressUFocusRing(input.showsFocus && focus == id, radius: 22)
@@ -162,11 +160,11 @@ struct EspressUCoverPicker: View {
     private var gameTdbCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("GAMETDB")
-                .font(.system(size: 13, weight: .heavy, design: .rounded))
+                .font(.footnote.weight(.semibold))
                 .tracking(0.6)
                 .foregroundColor(EspressUTheme.brownMid)
             Text("Find the game on gametdb.com/WiiU/CoverArt and enter its 6-character ID, for example AGBE01.")
-                .font(.system(size: 15, design: .rounded))
+                .font(.subheadline)
                 .foregroundColor(EspressUTheme.brownMid)
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 10) {
@@ -181,7 +179,7 @@ struct EspressUCoverPicker: View {
                     .onSubmit(fetch)
                     .padding(.horizontal, 16)
                     .frame(height: 50)
-                    .background(EspressUTheme.wrapper, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                     .espressUFocusRing(input.showsFocus && focus == "tdbField", radius: 16)
                     .id("tdbField")
                 Button(action: fetch) {
@@ -192,11 +190,11 @@ struct EspressUCoverPicker: View {
                             Text("Fetch")
                         }
                     }
-                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .font(.body.weight(.semibold))
                     .foregroundColor(EspressUTheme.accentText)
                     .padding(.horizontal, 20)
                     .frame(height: 50)
-                    .background(EspressUTheme.wrapper, in: Capsule())
+                    .background(Color.white.opacity(0.08), in: Capsule())
                 }
                 .buttonStyle(.plain)
                 .disabled(fetching || tdbId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -218,7 +216,7 @@ struct EspressUCoverPicker: View {
                         }
                         Text("Use this cover")
                     }
-                    .font(.system(size: 17, weight: .heavy, design: .rounded))
+                    .font(.body.weight(.semibold))
                     .foregroundColor(EspressUTheme.onCremaTop)
                     .frame(maxWidth: .infinity, minHeight: 50)
                     .background(EspressUTheme.cremaTopGradient, in: Capsule())
@@ -228,13 +226,12 @@ struct EspressUCoverPicker: View {
                 .id("use")
             } else if fetchAttempted && !fetching {
                 Text("No cover found for that ID.")
-                    .font(.system(size: 14, design: .rounded))
+                    .font(.subheadline)
                     .foregroundColor(EspressUTheme.brownMid)
             }
         }
         .padding(18)
-        .background(EspressUTheme.cream, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(EspressUTheme.wrapper, lineWidth: 1))
+        .espressUSurface(RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
     private func close() {
@@ -245,7 +242,7 @@ struct EspressUCoverPicker: View {
 
     private func usePicked(_ data: Data) {
         guard let prepared = CoverImageLoader.prepareCustomCover(from: data) else {
-            errorMessage = "That doesn't look like a valid image."
+            errorMessage = loc("That doesn't look like a valid image.")
             return
         }
         apply(prepared.data, ext: prepared.ext)
@@ -362,7 +359,7 @@ private struct ModernCoverPhotosPicker: ViewModifier {
                 item = nil
                 Task {
                     guard let data = try? await newItem.loadTransferable(type: Data.self) else {
-                        await MainActor.run { onError("Couldn't load that photo.") }
+                        await MainActor.run { onError(loc("Couldn't load that photo.")) }
                         return
                     }
                     await MainActor.run { onPicked(data) }

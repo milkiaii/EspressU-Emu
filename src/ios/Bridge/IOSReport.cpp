@@ -1,3 +1,8 @@
+// Copyright (c) 2026 EspressU (https://espressu.dev). EspressU Licence: non-commercial use only.
+// Anything that contains or is derived from this file must be fully open source, keep this file
+// under the EspressU Licence, keep this notice in every copy, and credit EspressU (https://espressu.dev).
+// Full text: LICENSES/EspressU-Licence.txt. Not covered by MPL-2.0.
+
 #include "IOSReport.h"
 #include "Cafe/HW/Latte/Core/FrameTimeStats.h"
 #include "Cafe/HW/Latte/Core/PerfTelemetry.h"
@@ -280,7 +285,7 @@ void IOSReport_Write(const char* text, size_t length)
 	if (fstat(s_fd, &info) == 0 && info.st_size - s_sessionStart > kLogTeeLimit)
 	{
 		if (!s_logTeeFull.exchange(true))
-			WriteString("\n[report] this session reached 48 MB in the report; further ordinary log lines are only in log.txt\n");
+			WriteString("\n[report] this session reached 48 MB in the report; further ordinary log lines are left out\n");
 		return;
 	}
 	WriteAll(text, length);

@@ -21,7 +21,7 @@ struct CPUSettingsSection: View {
             Toggle(isOn: $recompilerEnabled) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Use the recompiler (JIT)")
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .font(.subheadline.weight(.semibold))
                     Text("The fast way to run games. Needs a JIT enabler; without one the slow interpreter runs instead.")
                         .font(.system(size: 12))
                         .foregroundColor(EspressUTheme.secondaryText)
@@ -36,10 +36,10 @@ struct CPUSettingsSection: View {
                 Toggle(isOn: $favourAccuracy) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Favour accuracy")
-                            .font(.system(size: 15, weight: .semibold, design: .rounded))
-                        Text(favourAccuracy
-                             ? "Slower but more accurate: one CPU core and stricter GPU syncing."
-                             : "Faster, with some accuracy shortcuts.")
+                            .font(.subheadline.weight(.semibold))
+                        Text(loc(favourAccuracy
+                             ? loc("Slower but more accurate: one CPU core and stricter GPU syncing.")
+                             : loc("Faster, with some accuracy shortcuts.")))
                             .font(.system(size: 12))
                             .foregroundColor(EspressUTheme.secondaryText)
                     }
@@ -53,10 +53,10 @@ struct CPUSettingsSection: View {
                 Toggle(isOn: $favourPerformance) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Favour performance")
-                            .font(.system(size: 15, weight: .semibold, design: .rounded))
-                        Text(favourPerformance
-                             ? "As fast as possible: a softer picture, rougher lighting in some games, and shaders that may pop in."
-                             : "Off: the normal balance of speed and quality.")
+                            .font(.subheadline.weight(.semibold))
+                        Text(loc(favourPerformance
+                             ? loc("As fast as possible: a softer picture, rougher lighting in some games, and shaders that may pop in.")
+                             : loc("Off: the normal balance of speed and quality.")))
                             .font(.system(size: 12))
                             .foregroundColor(EspressUTheme.secondaryText)
                     }
@@ -70,10 +70,10 @@ struct CPUSettingsSection: View {
                 Toggle(isOn: $oneCoreMode) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("One-core mode")
-                            .font(.system(size: 15, weight: .semibold, design: .rounded))
-                        Text(oneCoreMode
-                             ? "One CPU core, whatever CPU cores is set to below."
-                             : "Follows the CPU cores setting below.")
+                            .font(.subheadline.weight(.semibold))
+                        Text(loc(oneCoreMode
+                             ? loc("One CPU core, whatever CPU cores is set to below.")
+                             : loc("Follows the CPU cores setting below.")))
                             .font(.system(size: 12))
                             .foregroundColor(EspressUTheme.secondaryText)
                     }
@@ -86,11 +86,11 @@ struct CPUSettingsSection: View {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
                         Text("CPU cores")
-                            .font(.system(size: 15, weight: .semibold, design: .rounded))
+                            .font(.subheadline.weight(.semibold))
                         Spacer()
                         Picker("CPU cores", selection: $coreModeRaw) {
                             ForEach(CoreMode.allCases) { mode in
-                                Text(mode.title).tag(mode.rawValue)
+                                Text(loc(mode.title)).tag(mode.rawValue)
                             }
                         }
                         .pickerStyle(.menu)
@@ -98,9 +98,9 @@ struct CPUSettingsSection: View {
                         .tint(EspressUTheme.accentText)
                         .disabled(!DeviceCapabilities.current.multicoreViable)
                     }
-                    Text(DeviceCapabilities.current.multicoreViable
+                    Text(loc(DeviceCapabilities.current.multicoreViable
                          ? (CoreMode(rawValue: coreModeRaw) ?? CoreMode.defaultValue).summary
-                         : DeviceCapabilities.oneCoreOnlyText)
+                         : DeviceCapabilities.oneCoreOnlyText))
                         .font(.system(size: 12))
                         .foregroundColor(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -113,7 +113,7 @@ struct CPUSettingsSection: View {
             Toggle(isOn: $autoReduceWhenHot) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Cool down automatically")
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .font(.subheadline.weight(.semibold))
                     Text("When iOS reports the device is overheating, lowers resolution and CPU load until it cools.")
                         .font(.system(size: 12))
                         .foregroundColor(EspressUTheme.secondaryText)
@@ -124,17 +124,17 @@ struct CPUSettingsSection: View {
             if advanced && autoReduceWhenHot {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Cool down starts at")
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .font(.footnote.weight(.semibold))
                     Picker("Cool down starts at", selection: $coolDownThresholdRaw) {
                         ForEach(ThermalSettings.Threshold.allCases) { threshold in
-                            Text(threshold.title).tag(threshold.rawValue)
+                            Text(loc(threshold.title)).tag(threshold.rawValue)
                         }
                     }
                     .pickerStyle(.segmented)
                     .onValueChange(of: coolDownThresholdRaw) { _ in
                         thermal.thresholdChanged()
                     }
-                    Text((ThermalSettings.Threshold(rawValue: coolDownThresholdRaw) ?? ThermalSettings.defaultThreshold).summary)
+                    Text(loc((ThermalSettings.Threshold(rawValue: coolDownThresholdRaw) ?? ThermalSettings.defaultThreshold).summary))
                         .font(.system(size: 12))
                         .foregroundColor(EspressUTheme.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
@@ -148,8 +148,8 @@ struct CPUSettingsSection: View {
                     .frame(width: 20)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Memory")
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
-                    Text(String(cString: cemu_bridge_memory_headroom_summary()))
+                        .font(.subheadline.weight(.semibold))
+                    Text(locBridge(String(cString: cemu_bridge_memory_headroom_summary())))
                         .font(.system(size: 12))
                         .foregroundColor(EspressUTheme.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
@@ -162,7 +162,7 @@ struct CPUSettingsSection: View {
                     .foregroundColor(EspressUTheme.brownMid)
                     .frame(width: 20)
                 Text("Device heat")
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .font(.subheadline.weight(.semibold))
                 Spacer(minLength: 12)
                 HeatStatusBadge()
             }
@@ -171,18 +171,18 @@ struct CPUSettingsSection: View {
             if HeatStatus.hasRealTemperature {
                 Picker("Show as", selection: $heatDisplayMode) {
                     ForEach(HeatDisplayMode.allCases) { mode in
-                        Text(mode.title).tag(mode.rawValue)
+                        Text(loc(mode.title)).tag(mode.rawValue)
                     }
                 }
                 .pickerStyle(.segmented)
             }
         } header: {
-            SettingsSectionHeader("CPU", icon: "cpu", accent: .core)
+            SettingsSectionHeader(loc("CPU"), icon: "cpu", accent: .core)
         } footer: {
             InfoButton.footer(
-                "Changes to the CPU switches apply the next time you start a game. Cool down automatically only acts when the device overheats; One-core mode is the always-on version.",
-                title: "CPU",
-                text: "The recompiler needs a JIT enabler (StikJIT, SideStore or LiveContainer). Without one the interpreter runs instead, which is much slower; the CPU line above shows which you got.\n\nFavour accuracy is slower but can fix a game that glitches, desyncs or crashes. It also builds every shader before it is needed, whatever Compile shaders in the background is set to.\n\nFavour performance is the opposite trade: everything runs as fast as EspressU can make it, and some quality goes. The picture is drawn at Balanced at most with linear scaling, so it's softer. Shaders skip the Wii U's exact multiply rule, which is faster but can make lighting or shadows look wrong in some games. Shaders always compile in the background, so things can pop in for a moment instead of the game pausing. Crash reports carry less detail. Favour accuracy and Favour performance turn each other off, and a game set to favour accuracy in its own options still does.\n\nCool down automatically acts when iOS reports the device is overheating, and Device heat shows that same state. In Advanced mode, Cool down starts at picks the point: Serious (the default) acts as soon as iOS starts throttling, Critical waits until iOS is throttling hard.\n\nThe recompiler, Favour accuracy, Favour performance, One-core mode and CPU cores apply the next time you start a game.")
+                loc("Changes to the CPU switches apply the next time you start a game. Cool down automatically only acts when the device overheats; One-core mode is the always-on version."),
+                title: loc("CPU"),
+                text: loc("The recompiler needs a JIT enabler (StikJIT, SideStore or LiveContainer). Without one the interpreter runs instead, which is much slower; the CPU line above shows which you got.\n\nFavour accuracy is slower but can fix a game that glitches, desyncs or crashes. It also builds every shader before it is needed, whatever Compile shaders in the background is set to.\n\nFavour performance is the opposite trade: everything runs as fast as EspressU can make it, and some quality goes. The picture is drawn at Balanced at most with linear scaling, so it's softer. Shaders skip the Wii U's exact multiply rule, which is faster but can make lighting or shadows look wrong in some games. Shaders always compile in the background, so things can pop in for a moment instead of the game pausing. Crash reports carry less detail. Favour accuracy and Favour performance turn each other off, and a game set to favour accuracy in its own options still does.\n\nCool down automatically acts when iOS reports the device is overheating, and Device heat shows that same state. In Advanced mode, Cool down starts at picks the point: Serious (the default) acts as soon as iOS starts throttling, Critical waits until iOS is throttling hard.\n\nThe recompiler, Favour accuracy, Favour performance, One-core mode and CPU cores apply the next time you start a game."))
         }
         .foregroundColor(EspressUTheme.brownDarkest)
     }
@@ -190,13 +190,13 @@ struct CPUSettingsSection: View {
 
 private struct CPUModeRow: View {
     private let mode = cemu_bridge_cpu_mode()
-    private let detail = String(cString: cemu_bridge_cpu_mode_detail())
+    private let detail = locBridge(String(cString: cemu_bridge_cpu_mode_detail()))
 
     private var title: String {
         switch mode {
-        case 2:  return "Recompiler (JIT)"
-        case 1:  return "Interpreter"
-        default: return "Not decided yet"
+        case 2:  return loc("Recompiler (JIT)")
+        case 1:  return loc("Interpreter")
+        default: return loc("Not decided yet")
         }
     }
 
@@ -213,10 +213,10 @@ private struct CPUModeRow: View {
             HStack {
                 Text("CPU")
                 Spacer()
-                Text(title)
+                Text(loc(title))
                     .foregroundColor(tint)
             }
-            Text(detail)
+            Text(loc(detail))
                 .font(.footnote)
                 .foregroundColor(EspressUTheme.brownMid)
                 .fixedSize(horizontal: false, vertical: true)

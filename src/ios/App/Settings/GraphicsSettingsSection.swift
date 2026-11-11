@@ -11,16 +11,8 @@ import Metal
 
 enum RendererAPI: Int, CaseIterable, Identifiable {
     case metal = 2
-    case vulkan = 1
 
     var id: Int { rawValue }
-
-    var title: String {
-        switch self {
-        case .metal:  return "Metal"
-        case .vulkan: return "Vulkan (Experimental)"
-        }
-    }
 
     static let storageKey = "espressu.render.graphicsAPI"
     static let defaultValue: RendererAPI = .metal
@@ -36,10 +28,10 @@ enum ScaleFilter: Int, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .linear:         return "Linear"
-        case .bicubic:        return "Bicubic"
-        case .bicubicHermite: return "Bicubic Hermite"
-        case .nearestNeighbor: return "Nearest Neighbor"
+        case .linear:         return loc("Linear")
+        case .bicubic:        return loc("Bicubic")
+        case .bicubicHermite: return loc("Bicubic Hermite")
+        case .nearestNeighbor: return loc("Nearest Neighbor")
         }
     }
 }
@@ -68,25 +60,7 @@ enum OverrideGammaSetting {
     static let maxValue: Double = 3.0
 }
 
-enum MoltenVKBuild: String, CaseIterable, Identifiable {
-    case v143 = "1.4.3"
-    case v128 = "1.2.8"
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .v143: return "1.4.3 (default)"
-        case .v128: return "1.2.8"
-        }
-    }
-
-    static let storageKey = "espressu.render.moltenVK"
-    static let defaultValue: MoltenVKBuild = .v143
-}
-
 struct GraphicsSettingsSection: View {
-    @AppStorage(RendererAPI.storageKey) private var rendererRaw = RendererAPI.defaultValue.rawValue
     @AppStorage(UpscaleFilterSetting.storageKey) private var upscaleRaw = UpscaleFilterSetting.defaultValue.rawValue
     @AppStorage(DownscaleFilterSetting.storageKey) private var downscaleRaw = DownscaleFilterSetting.defaultValue.rawValue
     @AppStorage(RenderScale.storageKey) private var renderScaleRaw = RenderScale.deviceDefault.rawValue
@@ -94,7 +68,6 @@ struct GraphicsSettingsSection: View {
     @AppStorage(FullSpeedRenders.storageKey) private var fullSpeedRenders = FullSpeedRenders.defaultValue
     @AppStorage(FullSpeedRenders.shaderModeKey) private var fullSpeedShaderMode = FullSpeedRenders.defaultShaderMode.rawValue
     @AppStorage(FrameStretch.storageKey) private var frameStretchEnabled = FrameStretch.defaultValue
-    @AppStorage(MoltenVKBuild.storageKey) private var moltenVKRaw = MoltenVKBuild.defaultValue.rawValue
     @AppStorage("espressu.render.upsideDown") private var upsideDownEnabled = false
     @AppStorage(DisplayGammaSetting.storageKey) private var displayGamma = DisplayGammaSetting.defaultValue
     @AppStorage("espressu.render.framebufferFetch") private var framebufferFetchEnabled = true
@@ -115,10 +88,6 @@ struct GraphicsSettingsSection: View {
                 if fullSpeedRenders {
                     fullSpeedShaderPicker
                 }
-                rendererPicker
-                if rendererRaw == RendererAPI.vulkan.rawValue {
-                    moltenVKPicker
-                }
                 upscalePicker
                 downscalePicker
             }
@@ -131,9 +100,7 @@ struct GraphicsSettingsSection: View {
             stretchToggle
             if advanced {
                 upsideDownToggle
-                if rendererRaw == RendererAPI.metal.rawValue {
-                    framebufferFetchToggle
-                }
+                framebufferFetchToggle
                 gammaSlider
                 overrideGammaToggle
                 if overrideAppGammaEnabled {
@@ -142,77 +109,20 @@ struct GraphicsSettingsSection: View {
             }
             meshShaderNote
         } header: {
-            SettingsSectionHeader("Graphics", icon: "cube.transparent", accent: .core)
+            SettingsSectionHeader(loc("Graphics"), icon: "cube.transparent", accent: .core)
         } footer: {
             InfoButton.footer(
-                "Metal is the default renderer. Vulkan (MoltenVK) may work better for some games; it applies on the next launch.",
-                title: "Graphics",
+                loc("Metal draws the picture. Resolution, filters and gamma apply from the next game you start."),
+                title: loc("Graphics"),
                 text: fullText)
         }
         .foregroundColor(EspressUTheme.brownDarkest)
     }
 
-    private var rendererPicker: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Renderer")
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
-            Picker("Renderer", selection: $rendererRaw) {
-                ForEach(RendererAPI.allCases) { api in
-                    Text(api.title).tag(api.rawValue)
-                }
-            }
-            .pickerStyle(.segmented)
-            .onValueChange(of: rendererRaw) { newValue in
-                if newValue == RendererAPI.vulkan.rawValue {
-                    UserDefaults.standard.removeObject(forKey: "espressu.render.vulkanFailedBuild")
-                    UserDefaults.standard.removeObject(forKey: "espressu.render.vulkanFailureReason")
-                }
-            }
-            Text("Experimental: Vulkan runs through MoltenVK on top of Metal. Some games may draw wrongly or stop, and if Vulkan fails the next launch switches back to Metal.")
-                .font(.system(size: 12))
-                .foregroundColor(EspressUTheme.secondaryText)
-            if let reason = UserDefaults.standard.string(forKey: "espressu.render.vulkanFailureReason"), !reason.isEmpty {
-                Text("Last Vulkan failure: \(reason)")
-                    .font(.system(size: 12))
-                    .foregroundColor(EspressUTheme.secondaryText)
-            }
-            if let failedBuild = UserDefaults.standard.string(forKey: "espressu.render.vulkanFailedBuild"),
-               rendererRaw == RendererAPI.metal.rawValue {
-                Text("Vulkan didn't start on this device with MoltenVK \(failedBuild). Metal is in use. Choosing Vulkan again tries it again.")
-                    .font(.system(size: 12))
-                    .foregroundColor(EspressUTheme.secondaryText)
-            }
-        }
-    }
-
-    private var moltenVKPicker: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("MoltenVK")
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
-            Picker("MoltenVK", selection: $moltenVKRaw) {
-                ForEach(MoltenVKBuild.allCases) { build in
-                    Text(build.title).tag(build.rawValue)
-                }
-            }
-            .pickerStyle(.segmented)
-            Text(moltenVKCaption)
-                .font(.system(size: 12))
-                .foregroundColor(EspressUTheme.secondaryText)
-        }
-    }
-
-    private var moltenVKCaption: String {
-        let active = String(cString: cemu_bridge_active_moltenvk())
-        if !active.isEmpty && active != moltenVKRaw {
-            return "Running \(active) now. \(moltenVKRaw) is used from the next launch of EspressU."
-        }
-        return "Used by the Vulkan renderer only. A change applies the next time EspressU launches."
-    }
-
     private var upscalePicker: some View {
         Picker("Filter when enlarging", selection: $upscaleRaw) {
             ForEach(ScaleFilter.allCases) { filter in
-                Text(filter.title).tag(filter.rawValue)
+                Text(loc(filter.title)).tag(filter.rawValue)
             }
         }
         .pickerStyle(.menu)
@@ -223,7 +133,7 @@ struct GraphicsSettingsSection: View {
     private var downscalePicker: some View {
         Picker("Filter when shrinking", selection: $downscaleRaw) {
             ForEach(ScaleFilter.allCases) { filter in
-                Text(filter.title).tag(filter.rawValue)
+                Text(loc(filter.title)).tag(filter.rawValue)
             }
         }
         .pickerStyle(.menu)
@@ -235,10 +145,10 @@ struct GraphicsSettingsSection: View {
         Toggle(isOn: $fullSpeedRenders) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Steady frame rate")
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
-                Text(fullSpeedRenders
-                     ? "Rendering comes first: steady frames at the game's own Wii U frame rate, never faster."
-                     : "Off: frames are shown the moment they're ready.")
+                    .font(.subheadline.weight(.semibold))
+                Text(loc(fullSpeedRenders
+                     ? loc("Rendering comes first: steady frames at the game's own Wii U frame rate, never faster.")
+                     : loc("Off: frames are shown the moment they're ready.")))
                     .font(.system(size: 12))
                     .foregroundColor(EspressUTheme.secondaryText)
             }
@@ -251,14 +161,14 @@ struct GraphicsSettingsSection: View {
         VStack(alignment: .leading, spacing: 4) {
             Picker("First time a new effect appears", selection: $fullSpeedShaderMode) {
                 ForEach(FullSpeedRenders.ShaderMode.allCases) { mode in
-                    Text(mode.title).tag(mode.rawValue)
+                    Text(loc(mode.title)).tag(mode.rawValue)
                 }
             }
             .pickerStyle(.menu)
             .tint(EspressUTheme.accentText)
             .foregroundColor(EspressUTheme.brownDarkest)
             .onValueChange(of: fullSpeedShaderMode) { _ in FullSpeedRenders.applyToBridge() }
-            Text((FullSpeedRenders.ShaderMode(rawValue: fullSpeedShaderMode) ?? FullSpeedRenders.defaultShaderMode).summary)
+            Text(loc((FullSpeedRenders.ShaderMode(rawValue: fullSpeedShaderMode) ?? FullSpeedRenders.defaultShaderMode).summary))
                 .font(.system(size: 12))
                 .foregroundColor(EspressUTheme.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -268,7 +178,7 @@ struct GraphicsSettingsSection: View {
     private var resolutionPicker: some View {
         Picker("Resolution", selection: $renderScaleRaw) {
             ForEach(RenderScale.allCases) { scale in
-                Text(scale.title).tag(scale.rawValue)
+                Text(loc(scale.title)).tag(scale.rawValue)
             }
         }
         .pickerStyle(.menu)
@@ -279,7 +189,7 @@ struct GraphicsSettingsSection: View {
     private var stretchToggle: some View {
         Toggle(isOn: $frameStretchEnabled) {
             Text("Stretch picture to fill the screen")
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .font(.subheadline.weight(.semibold))
         }
         .tint(EspressUTheme.accentText)
         .onValueChange(of: frameStretchEnabled) { newValue in
@@ -290,7 +200,7 @@ struct GraphicsSettingsSection: View {
     private var upsideDownToggle: some View {
         Toggle(isOn: $upsideDownEnabled) {
             Text("Flip screen upside down")
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .font(.subheadline.weight(.semibold))
         }
         .tint(EspressUTheme.accentText)
         .onValueChange(of: upsideDownEnabled) { newValue in
@@ -302,7 +212,7 @@ struct GraphicsSettingsSection: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text("Display gamma")
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .font(.footnote.weight(.semibold))
                 Spacer()
                 Text(String(format: "%.1f", displayGamma))
                     .font(.system(size: 13, design: .monospaced))
@@ -322,7 +232,7 @@ struct GraphicsSettingsSection: View {
     private var framebufferFetchToggle: some View {
         Toggle(isOn: $framebufferFetchEnabled) {
             Text("Fast blending")
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .font(.subheadline.weight(.semibold))
         }
         .tint(EspressUTheme.accentText)
         .onValueChange(of: framebufferFetchEnabled) { newValue in
@@ -333,7 +243,7 @@ struct GraphicsSettingsSection: View {
     private var overrideGammaToggle: some View {
         Toggle(isOn: $overrideAppGammaEnabled) {
             Text("Override the game's gamma")
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .font(.subheadline.weight(.semibold))
         }
         .tint(EspressUTheme.accentText)
         .onValueChange(of: overrideAppGammaEnabled) { newValue in
@@ -345,7 +255,7 @@ struct GraphicsSettingsSection: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text("Override gamma")
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .font(.footnote.weight(.semibold))
                 Spacer()
                 Text(String(format: "%.1f", overrideGammaValue))
                     .font(.system(size: 13, design: .monospaced))
@@ -376,11 +286,7 @@ struct GraphicsSettingsSection: View {
 
     private var fullText: String {
         """
-        Steady frame rate puts rendering ahead of everything else EspressU does: the graphics thread gets first call on the fastest cores, each frame is shown at the game's own Wii U frame rate (steady, and never faster than the console), and debugging extras are skipped. Every shader the game has used before is built while the game loads, so those never cause a hitch or a flicker. The first time something brand new appears, its shader has to be built: "Wait for it" holds the frame until it's ready (a short hitch, never a missing object), "Keep going" draws without it once (no hitch, but it can be missing for a moment). Either way it's saved, so it happens only once. This choice wins over Favour accuracy, Favour performance and Compile shaders in the background. Takes effect the next time you start a game.
-
-        Metal is the default renderer. Vulkan (MoltenVK) goes through a translation layer and may work better for some games, at some cost to speed. Takes effect the next time you launch a game.
-
-        MoltenVK is the layer that turns Vulkan into Metal, so it only matters with the Vulkan renderer. 1.4.3 is the default; 1.2.8 is an older build that some games run better on. A change applies the next time EspressU starts.
+        Steady frame rate puts rendering ahead of everything else EspressU does: the graphics thread gets first call on the fastest cores, each frame is shown at the game's own Wii U frame rate (steady, and never faster than the console), and debugging extras are skipped. Every shader the game has used before is built while the game loads, so those never cause a hitch or a flicker. The first time something brand new appears, its shader has to be built: loc("Wait for it") holds the frame until it's ready (a short hitch, never a missing object), loc("Keep going") draws without it once (no hitch, but it can be missing for a moment). Either way it's saved, so it happens only once. This choice wins over Favour accuracy, Favour performance and Compile shaders in the background. Takes effect the next time you start a game.
 
         Filter when enlarging is used when EspressU draws the game's picture larger than the game rendered it; Filter when shrinking is used when drawing it smaller. Bicubic (the default for enlarging) is smoother than linear; Bicubic Hermite sharpens that further; Nearest Neighbor keeps hard pixel edges with no blending at all. Linear is the default for shrinking.
 
@@ -400,6 +306,6 @@ struct GraphicsSettingsSection: View {
 
         Override the game's gamma and Override gamma are a separate stage from Display gamma above, not a second copy of it: some games ask for their own gamma value, and this either adds Override gamma on top of that request (off) or replaces the game's request with Override gamma entirely (on) - before Display gamma is applied to the result. Off by default; most games never ask for a specific gamma at all, so this has nothing to override until one does.
         """
-        + (meshShadersUnsupported ? "\n\nThis device doesn't support mesh shaders, so graphic packs that rely on geometry shaders or post-processing (RECTS) draws may not render correctly. Everything else works normally." : "")
+        + (meshShadersUnsupported ? loc("\n\nThis device doesn't support mesh shaders, so graphic packs that rely on geometry shaders or post-processing (RECTS) draws may not render correctly. Everything else works normally.") : "")
     }
 }

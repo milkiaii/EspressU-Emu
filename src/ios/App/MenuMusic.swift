@@ -30,11 +30,11 @@ final class MenuMusic: NSObject, AVAudioPlayerDelegate {
 
         var title: String {
             switch self {
-            case .allSongs: return "All songs"
-            case .horizonDrive: return "Horizon Drive"
-            case .starfall: return "Starfall"
-            case .phaseShift: return "Phase Shift"
-            case .labRats: return "Lab Rats"
+            case .allSongs: return loc("All songs")
+            case .horizonDrive: return loc("Horizon Drive")
+            case .starfall: return loc("Starfall")
+            case .phaseShift: return loc("Phase Shift")
+            case .labRats: return loc("Lab Rats")
             }
         }
 
@@ -199,7 +199,7 @@ struct MenuMusicSettingsGroup: View {
         Toggle(isOn: $enabled) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Theme music")
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .font(.system(size: 15, weight: .semibold))
                 Text("Plays EspressU's themes, or your own tracks, on loop in the menus, never in a game.")
                     .font(.system(size: 12))
                     .foregroundColor(.secondary)
@@ -212,12 +212,12 @@ struct MenuMusicSettingsGroup: View {
         if enabled {
             Picker("Song", selection: $trackRaw) {
                 ForEach(MenuMusic.Track.allCases) { track in
-                    Text(track.title).tag(track.rawValue)
+                    Text(loc(track.title)).tag(track.rawValue)
                 }
                 if !customTracks.isEmpty {
                     Text("All my tracks").tag(MenuMusic.customAllTag)
                     ForEach(customTracks, id: \.self) { url in
-                        Text(url.deletingPathExtension().lastPathComponent)
+                        Text(loc(url.deletingPathExtension().lastPathComponent))
                             .tag(MenuMusic.customPrefix + url.lastPathComponent)
                     }
                 }
@@ -274,7 +274,7 @@ struct RespectSilentModeToggle: View {
         Toggle(isOn: $respect) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Respect silent mode")
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .font(.system(size: 15, weight: .semibold))
                 Text("When silent mode is on, games make no sound. Takes effect from the next game you start. With the microphone on, game audio keeps playing.")
                     .font(.system(size: 12))
                     .foregroundColor(.secondary)

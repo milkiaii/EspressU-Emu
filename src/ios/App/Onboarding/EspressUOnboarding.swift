@@ -80,7 +80,7 @@ struct EspressUOnboardingView: View {
             Spacer()
             if page < pageCount - 1 {
                 Button("Skip setup", action: finish)
-                    .font(.system(.body, design: .rounded))
+                    .font(.system(.body))
                     .foregroundColor(EspressUTheme.brownMid)
                     .frame(minHeight: 44)
                     .padding(.horizontal, 10)
@@ -96,7 +96,7 @@ struct EspressUOnboardingView: View {
         HStack(spacing: 12) {
             Button(action: goBack) {
                 Text("Back")
-                    .font(.system(.headline, design: .rounded).weight(.regular))
+                    .font(.system(.headline).weight(.regular))
                     .foregroundColor(EspressUTheme.brownDarkest)
                     .frame(minWidth: 96, minHeight: 50)
             }
@@ -109,19 +109,19 @@ struct EspressUOnboardingView: View {
             Spacer(minLength: 0)
             if input.showsFocus {
                 HStack(spacing: 16) {
-                    ControllerButtonHint(symbol: input.confirmSymbol, text: "Select")
-                    if page > 0 { ControllerButtonHint(symbol: input.backSymbol, text: "Back") }
+                    ControllerButtonHint(symbol: input.confirmSymbol, text: loc("Select"))
+                    if page > 0 { ControllerButtonHint(symbol: input.backSymbol, text: loc("Back")) }
                 }
             } else {
-                Text("Step \(page + 1) of \(pageCount)")
-                    .font(.system(.subheadline, design: .rounded))
+                Text(locf("Step %@ of %@", page + 1, pageCount))
+                    .font(.system(.subheadline))
                     .foregroundColor(EspressUTheme.brownMid)
             }
             Spacer(minLength: 0)
 
             Button(action: advance) {
-                Text(primaryTitle)
-                    .font(.system(.headline, design: .rounded))
+                Text(loc(primaryTitle))
+                    .font(.system(.headline))
                     .foregroundColor(EspressUTheme.onAccent)
                     .padding(.horizontal, 22)
                     .frame(minWidth: 112, minHeight: 50)
@@ -129,7 +129,7 @@ struct EspressUOnboardingView: View {
             }
             .buttonStyle(.plain)
             .controllerFocusRing(isFocused(page == pageCount - 1 ? "finish" : "next"), shape: Capsule())
-            .accessibilityHint(page == pageCount - 1 ? "Finishes the guide and opens your library." : "Goes to the next page.")
+            .accessibilityHint(page == pageCount - 1 ? loc("Finishes the guide and opens your library.") : loc("Goes to the next page."))
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
@@ -141,9 +141,9 @@ struct EspressUOnboardingView: View {
 
     private var primaryTitle: String {
         switch page {
-        case 0: return "Get started"
-        case pageCount - 1: return "Start playing"
-        default: return "Next"
+        case 0: return loc("Get started")
+        case pageCount - 1: return loc("Start playing")
+        default: return loc("Next")
         }
     }
 
@@ -151,15 +151,15 @@ struct EspressUOnboardingView: View {
         ScrollView {
             VStack(spacing: 20) {
                 EspressULogo(side: 140)
-                    .shadow(color: EspressUTheme.shadow.opacity(0.22), radius: 18, y: 10)
+                    .shadow(color: EspressUTheme.shadow.opacity(0.11), radius: 18, y: 10)
                     .accessibilityHidden(true)
                 Text("Welcome to EspressU")
-                    .font(.system(.largeTitle, design: .rounded).weight(.bold))
+                    .font(.system(.largeTitle).weight(.bold))
                     .foregroundColor(EspressUTheme.onBackground)
                     .multilineTextAlignment(.center)
                     .accessibilityAddTraits(.isHeader)
-                Text("Play the Wii U games you own on your \(UIDevice.current.userInterfaceIdiom == .pad ? "iPad" : "iPhone"). Setup takes about two minutes, and every step can be skipped.")
-                    .font(.system(.title3, design: .rounded))
+                Text(locf("Play the Wii U games you own on your %@. Setup takes about two minutes, and every step can be skipped.", UIDevice.current.userInterfaceIdiom == .pad ? "iPad" : "iPhone"))
+                    .font(.system(.title3))
                     .foregroundColor(EspressUTheme.onBackgroundMuted)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: 560)
@@ -174,18 +174,17 @@ struct EspressUOnboardingView: View {
     }
 
     private var flowChips: some View {
-        let chips = [("arrow.down.to.line", "Your own games"),
-                     ("bolt.fill", "Full speed with JIT"),
-                     ("gamecontroller.fill", "Touch or controller")]
+        let chips = [("arrow.down.to.line", loc("Your own games")),
+                     ("bolt.fill", loc("Full speed with JIT")),
+                     ("gamecontroller.fill", loc("Touch or controller"))]
         return HStackOrVStack {
             ForEach(chips.indices, id: \.self) { index in
                 Label(chips[index].1, systemImage: chips[index].0)
-                    .font(.system(.callout, design: .rounded).weight(.medium))
+                    .font(.system(.callout).weight(.medium))
                     .foregroundColor(EspressUTheme.brownDarkest)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 11)
-                    .background(EspressUTheme.cream, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(EspressUTheme.wrapper, lineWidth: 1))
+                    .espressUSurface(RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
         }
     }
@@ -193,22 +192,22 @@ struct EspressUOnboardingView: View {
     private func gamesPage(wide: Bool) -> some View {
         OnboardingColumns(wide: wide) {
             VStack(alignment: .leading, spacing: 16) {
-                pageHeading("Add your games",
-                            "Use games dumped from your own Wii U. A single .wua file is easiest: it holds the game, its update and DLC in one.")
-                bigButton(id: "choose", title: "Game file", detail: ".wua, .wud, .wux or .rpx",
+                pageHeading(loc("Add your games"),
+                            loc("Use games dumped from your own Wii U. A single .wua file is easiest: it holds the game, its update and DLC in one."))
+                bigButton(id: "choose", title: loc("Game file"), detail: loc(".wua, .wud, .wux or .rpx"),
                           systemImage: "doc.fill", primary: true, action: chooseGames)
-                bigButton(id: "folder", title: "Game folder", detail: "A dumped game with code, content and meta",
+                bigButton(id: "folder", title: loc("Game folder"), detail: loc("A dumped game with code, content and meta"),
                           systemImage: "folder.fill", primary: false, action: chooseGameFolder)
-                bigButton(id: "files", title: "Put games in Files",
-                          detail: "Opens Files at EspressU › Roms. New games show up on their own.",
+                bigButton(id: "files", title: loc("Put games in Files"),
+                          detail: loc("Opens Files at EspressU › Roms. New games show up on their own."),
                           systemImage: "folder.badge.plus", primary: false, action: openRomsInFiles)
                 keysRow
                 if case .copying(let name) = gameManager.importState {
                     HStack(spacing: 10) {
                         ProgressView()
-                        Text("Copying \(name)\u{2026}")
+                        Text(locf("Copying %@\u{2026}", name))
                     }
-                    .font(.system(.subheadline, design: .rounded))
+                    .font(.system(.subheadline))
                     .foregroundColor(EspressUTheme.brownMid)
                 }
                 if let gamesNote { noteText(gamesNote) }
@@ -223,15 +222,15 @@ struct EspressUOnboardingView: View {
             Image(systemName: "key.fill")
                 .foregroundColor(EspressUTheme.brownMid)
                 .accessibilityHidden(true)
-            Text(keyCount > 0
-                 ? "\(keyCount) key\(keyCount == 1 ? "" : "s") loaded for encrypted dumps (.wud, .wux)."
-                 : "Encrypted dumps (.wud, .wux) also need your keys.txt. Not needed for .wua.")
-                .font(.system(.subheadline, design: .rounded))
+            Text(loc(keyCount > 0
+                 ? locn(keyCount, "%@ key loaded for encrypted dumps (.wud, .wux).", "%@ keys loaded for encrypted dumps (.wud, .wux).")
+                 : "Encrypted dumps (.wud, .wux) also need your keys.txt. Not needed for .wua."))
+                .font(.system(.subheadline))
                 .foregroundColor(EspressUTheme.brownMid)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
-            Button(keyCount > 0 ? "Replace" : "Add keys", action: importKeys)
-                .font(.system(.subheadline, design: .rounded).weight(.semibold))
+            Button(keyCount > 0 ? loc("Replace") : loc("Add keys"), action: importKeys)
+                .font(.system(.subheadline).weight(.semibold))
                 .foregroundColor(EspressUTheme.accentText)
                 .frame(minHeight: 44)
                 .padding(.horizontal, 8)
@@ -247,11 +246,11 @@ struct EspressUOnboardingView: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .firstTextBaseline) {
                 Text("Your library")
-                    .font(.system(.title3, design: .rounded).weight(.semibold))
+                    .font(.system(.title3).weight(.semibold))
                     .foregroundColor(EspressUTheme.brownDarkest)
                 Spacer()
-                Text("\(gameManager.games.count) game\(gameManager.games.count == 1 ? "" : "s")")
-                    .font(.system(.subheadline, design: .rounded))
+                Text(locn(gameManager.games.count, "%@ game", "%@ games"))
+                    .font(.system(.subheadline))
                     .foregroundColor(EspressUTheme.brownMid)
             }
             if gameManager.games.isEmpty {
@@ -260,12 +259,12 @@ struct EspressUOnboardingView: View {
                         .font(.system(size: 34))
                         .foregroundColor(EspressUTheme.brownMid.opacity(0.6))
                     Text("Games you add show up here, with their own icon and name.")
-                        .font(.system(.subheadline, design: .rounded))
+                        .font(.system(.subheadline))
                         .foregroundColor(EspressUTheme.brownMid)
                         .multilineTextAlignment(.center)
                 }
                 .frame(maxWidth: .infinity, minHeight: 180)
-                .background(EspressUTheme.wrapper.opacity(0.5), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .espressUSurface(RoundedRectangle(cornerRadius: 20, style: .continuous))
             } else {
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)], spacing: 14) {
                     ForEach(Array(gameManager.games.prefix(4))) { game in
@@ -282,8 +281,8 @@ struct EspressUOnboardingView: View {
                             }
                             .aspectRatio(1, contentMode: .fit)
                             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                            Text(game.cardName.name)
-                                .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                            Text(loc(game.cardName.name))
+                                .font(.system(.subheadline).weight(.semibold))
                                 .foregroundColor(EspressUTheme.brownDarkest)
                                 .lineLimit(1)
                         }
@@ -292,35 +291,34 @@ struct EspressUOnboardingView: View {
             }
         }
         .padding(22)
-        .background(EspressUTheme.cream, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 28, style: .continuous).stroke(EspressUTheme.wrapper, lineWidth: 1))
+        .espressUSurface(RoundedRectangle(cornerRadius: 28, style: .continuous))
     }
 
     private func jitPage(wide: Bool) -> some View {
         OnboardingColumns(wide: wide) {
             VStack(alignment: .leading, spacing: 16) {
-                pageHeading("Turn on full speed",
+                pageHeading(loc("Turn on full speed"),
                             DevicePairing.isSupported
-                                ? "Built-in JIT switches on by itself when a game starts. For that, EspressU needs a pairing file for this device once."
+                                ? loc("Built-in JIT switches on by itself when a game starts. For that, EspressU needs a pairing file for this device once.")
                                 : "Built-in JIT switches on by itself when a game starts. For that, EspressU needs a pairing file for this device once. This iOS version can't make one itself, so you import one.")
                 jitStatusCard
                 Text("No JIT? Games still start, just much slower.")
-                    .font(.system(.subheadline, design: .rounded))
+                    .font(.system(.subheadline))
                     .foregroundColor(EspressUTheme.onBackgroundMuted)
             }
         } trailing: {
             VStack(alignment: .leading, spacing: 10) {
                 Text("How to set it up")
-                    .font(.system(.title3, design: .rounded).weight(.semibold))
+                    .font(.system(.title3).weight(.semibold))
                     .foregroundColor(EspressUTheme.onBackground)
                     .accessibilityAddTraits(.isHeader)
                 if DevicePairing.isSupported {
-                    stepCard(1, "Pair this device", "Tap Pair. A pairing file from iLoader works too: Settings › JIT.")
+                    stepCard(1, loc("Pair this device"), loc("Tap Pair. A pairing file from iLoader works too: Settings › JIT."))
                 } else {
-                    stepCard(1, "Import a pairing file", "Built-in pairing needs iOS \(DevicePairing.minimumIOSVersion) or newer. Make a pairing file with iLoader or idevice_pair, then tap Import.")
+                    stepCard(1, loc("Import a pairing file"), locf("Built-in pairing needs iOS %@ or newer. Make a pairing file with iLoader or idevice_pair, then tap Import.", DevicePairing.minimumIOSVersion))
                 }
-                stepCard(2, "Connect LocalDevVPN", "EspressU reaches the device through it. Wi-Fi works best.")
-                stepCard(3, "That's it", "JIT switches on by itself whenever LocalDevVPN is connected.")
+                stepCard(2, loc("Connect LocalDevVPN"), loc("EspressU reaches the device through it. Wi-Fi works best."))
+                stepCard(3, loc("That's it"), loc("JIT switches on by itself whenever LocalDevVPN is connected."))
             }
         }
     }
@@ -332,8 +330,8 @@ struct EspressUOnboardingView: View {
                 JITPairingCard()
             }
             Button(action: pairOrStop) {
-                Text(pairing.isActive ? "Stop pairing" : pairButtonTitle)
-                    .font(.system(.headline, design: .rounded))
+                Text(loc(pairing.isActive ? "Stop pairing" : pairButtonTitle))
+                    .font(.system(.headline))
                     .foregroundColor(pairing.isActive ? EspressUTheme.brownDarkest : EspressUTheme.onAccent)
                     .frame(maxWidth: .infinity, minHeight: 52)
                     .background(pairing.isActive ? AnyShapeStyle(EspressUTheme.wrapper) : AnyShapeStyle(EspressUTheme.pixelBlue), in: Capsule())
@@ -344,13 +342,12 @@ struct EspressUOnboardingView: View {
             if let pairingNote { noteText(pairingNote) }
         }
         .padding(22)
-        .background(EspressUTheme.cream, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 28, style: .continuous).stroke(EspressUTheme.wrapper, lineWidth: 1))
+        .espressUSurface(RoundedRectangle(cornerRadius: 28, style: .continuous))
     }
 
     private var pairButtonTitle: String {
-        if DevicePairing.isSupported { return StikJITSetup.hasPairingFile ? "Pair again" : "Pair" }
-        return StikJITSetup.hasPairingFile ? "Import another pairing file" : "Import pairing file"
+        if DevicePairing.isSupported { return StikJITSetup.hasPairingFile ? loc("Pair again") : loc("Pair") }
+        return StikJITSetup.hasPairingFile ? loc("Import another pairing file") : loc("Import pairing file")
     }
 
     private func pairOrStop() {
@@ -373,10 +370,10 @@ struct EspressUOnboardingView: View {
                 StikJITCoordinator.shared.autoEnableIfPossible()
                 pairingNote = nil
             } catch {
-                pairingNote = "Couldn't import it: \(error.localizedDescription)"
+                pairingNote = locf("Couldn't import it: %@", error.localizedDescription)
             }
         case .failure(let error):
-            pairingNote = "Couldn't import it: \(error.localizedDescription)"
+            pairingNote = locf("Couldn't import it: %@", error.localizedDescription)
         }
     }
 
@@ -384,22 +381,22 @@ struct EspressUOnboardingView: View {
         OnboardingColumns(wide: wide) {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Optional")
-                    .font(.system(.footnote, design: .rounded).weight(.semibold))
+                    .font(.system(.footnote).weight(.semibold))
                     .foregroundColor(EspressUTheme.brownMid)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
-                    .background(EspressUTheme.wrapper, in: Capsule())
-                pageHeading("Play with a controller",
-                            "Pair it in Settings › Bluetooth. Xbox, PlayStation, Switch Pro and MFi controllers work, in games and in every menu of EspressU.")
+                    .background(Color.white.opacity(0.08), in: Capsule())
+                pageHeading(loc("Play with a controller"),
+                            loc("Pair it in Settings › Bluetooth. Xbox, PlayStation, Switch Pro and MFi controllers work, in games and in every menu of EspressU."))
                 Text("No controller? The touch controls show up on screen and hide as soon as a controller connects.")
-                    .font(.system(.subheadline, design: .rounded))
+                    .font(.system(.subheadline))
                     .foregroundColor(EspressUTheme.onBackgroundMuted)
                     .fixedSize(horizontal: false, vertical: true)
             }
         } trailing: {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Connected")
-                    .font(.system(.title3, design: .rounded).weight(.semibold))
+                    .font(.system(.title3).weight(.semibold))
                     .foregroundColor(EspressUTheme.brownDarkest)
                 if input.controllers.isEmpty {
                     HStack(spacing: 14) {
@@ -407,7 +404,7 @@ struct EspressUOnboardingView: View {
                             .font(.system(size: 28))
                             .accessibilityHidden(true)
                         Text("No controller yet. It shows up here as soon as it's paired.")
-                            .font(.system(.callout, design: .rounded))
+                            .font(.system(.callout))
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     .foregroundColor(EspressUTheme.brownMid)
@@ -422,23 +419,23 @@ struct EspressUOnboardingView: View {
                                 .font(.system(size: 26))
                                 .foregroundColor(EspressUTheme.accentText)
                                 .accessibilityHidden(true)
-                            Text(controller.vendorName ?? "Controller")
-                                .font(.system(.headline, design: .rounded))
+                            Text(loc(controller.vendorName ?? "Controller"))
+                                .font(.system(.headline))
                                 .foregroundColor(EspressUTheme.brownDarkest)
                             Spacer(minLength: 0)
                             Text("Ready")
-                                .font(.system(.footnote, design: .rounded).weight(.semibold))
+                                .font(.system(.footnote).weight(.semibold))
                                 .foregroundColor(Color(light: "#17663F", dark: "#7FE0AE"))
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 6)
                                 .background(Color(light: "#DDF3E7", dark: "#173A2A"), in: Capsule())
                         }
                         .padding(16)
-                        .background(EspressUTheme.wrapper.opacity(0.7), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                        .espressUSurface(RoundedRectangle(cornerRadius: 20, style: .continuous))
                     }
                     HStack(spacing: 12) {
                         Text("Press any button to test it:")
-                            .font(.system(.callout, design: .rounded))
+                            .font(.system(.callout))
                             .foregroundColor(EspressUTheme.brownMid)
                         Image(systemName: input.lastPressedSymbol ?? "circle.dashed")
                             .font(.system(size: 30, weight: .semibold))
@@ -451,20 +448,19 @@ struct EspressUOnboardingView: View {
                 }
             }
             .padding(22)
-            .background(EspressUTheme.cream, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 28, style: .continuous).stroke(EspressUTheme.wrapper, lineWidth: 1))
+            .espressUSurface(RoundedRectangle(cornerRadius: 28, style: .continuous))
         }
     }
 
     private func pageHeading(_ title: String, _ subtitle: String) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(title)
-                .font(.system(.largeTitle, design: .rounded).weight(.bold))
+            Text(loc(title))
+                .font(.system(.largeTitle).weight(.bold))
                 .foregroundColor(EspressUTheme.onBackground)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
-            Text(subtitle)
-                .font(.system(.body, design: .rounded))
+            Text(loc(subtitle))
+                .font(.system(.body))
                 .foregroundColor(EspressUTheme.onBackgroundMuted)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -479,10 +475,10 @@ struct EspressUOnboardingView: View {
                     .frame(width: 34)
                     .foregroundColor(primary ? EspressUTheme.onAccent : EspressUTheme.accentText)
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(title)
-                        .font(.system(.headline, design: .rounded))
-                    Text(detail)
-                        .font(.system(.subheadline, design: .rounded))
+                    Text(loc(title))
+                        .font(.system(.headline))
+                    Text(loc(detail))
+                        .font(.system(.subheadline))
                         .opacity(primary ? 0.88 : 1)
                         .foregroundColor(primary ? EspressUTheme.onAccent : EspressUTheme.brownMid)
                         .fixedSize(horizontal: false, vertical: true)
@@ -494,8 +490,8 @@ struct EspressUOnboardingView: View {
             .padding(18)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(primary ? EspressUTheme.pixelBlue : EspressUTheme.cream,
-                        in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .stroke(primary ? Color.clear : EspressUTheme.wrapper, lineWidth: 1))
         }
         .buttonStyle(.plain)
@@ -505,32 +501,31 @@ struct EspressUOnboardingView: View {
     private func stepCard(_ number: Int, _ title: String, _ detail: String) -> some View {
         HStack(alignment: .top, spacing: 14) {
             Text("\(number)")
-                .font(.system(.callout, design: .rounded).weight(.bold))
+                .font(.system(.callout).weight(.bold))
                 .foregroundColor(EspressUTheme.accentText)
                 .frame(width: 32, height: 32)
                 .background(EspressUTheme.wrapper, in: Circle())
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.system(.headline, design: .rounded))
+                Text(loc(title))
+                    .font(.system(.headline))
                     .foregroundColor(EspressUTheme.brownDarkest)
-                Text(detail)
-                    .font(.system(.subheadline, design: .rounded))
+                Text(loc(detail))
+                    .font(.system(.subheadline))
                     .foregroundColor(EspressUTheme.brownMid)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 0)
         }
         .padding(16)
-        .background(EspressUTheme.cream, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(EspressUTheme.wrapper, lineWidth: 1))
+        .espressUSurface(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Step \(number): \(title). \(detail)")
+        .accessibilityLabel(locf("Step %@: %@. %@", number, title, detail))
     }
 
     private func noteText(_ text: String) -> some View {
-        Text(text)
-            .font(.system(.subheadline, design: .rounded))
+        Text(loc(text))
+            .font(.system(.subheadline))
             .foregroundColor(EspressUTheme.alertText)
             .fixedSize(horizontal: false, vertical: true)
     }

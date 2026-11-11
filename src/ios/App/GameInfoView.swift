@@ -39,11 +39,11 @@ struct GameInfoSections: View {
     private func summarySection(_ info: GameInfo) -> some View {
         Section {
             if let s = info.bestSynopsis {
-                Text(s.text)
+                Text(loc(s.text))
                     .font(.system(size: 14))
                     .fixedSize(horizontal: false, vertical: true)
                 if s.language != GameInfo.preferredLanguages.first {
-                    Text("Summary language: \(s.language)")
+                    Text(locf("Summary language: %@", s.language))
                         .font(.system(size: 12)).foregroundColor(EspressUTheme.secondaryText)
                 }
             } else {
@@ -57,15 +57,15 @@ struct GameInfoSections: View {
 
     private func detailsSection(_ info: GameInfo) -> some View {
         Section {
-            if let p = info.publisher { SettingsRow(label: "Publisher", value: p, icon: "building.2") }
-            if let d = info.developer { SettingsRow(label: "Developer", value: d, icon: "hammer") }
-            if !info.genres.isEmpty { SettingsRow(label: "Genre", value: info.genres.joined(separator: ", "), icon: "tag") }
-            if let players = playersText(info) { SettingsRow(label: "Players", value: players, icon: "person.2") }
-            if let rating = ratingText(info) { SettingsRow(label: "Rating", value: rating, icon: "checkmark.shield") }
-            if !info.languages.isEmpty { SettingsRow(label: "Languages", value: info.languages.joined(separator: ", "), icon: "character.bubble") }
-            if let size = info.romSize { SettingsRow(label: "Size", value: ByteCountFormatter.string(fromByteCount: size, countStyle: .file), icon: "internaldrive") }
+            if let p = info.publisher { SettingsRow(label: loc("Publisher"), value: p, icon: "building.2") }
+            if let d = info.developer { SettingsRow(label: loc("Developer"), value: d, icon: "hammer") }
+            if !info.genres.isEmpty { SettingsRow(label: loc("Genre"), value: info.genres.joined(separator: ", "), icon: "tag") }
+            if let players = playersText(info) { SettingsRow(label: loc("Players"), value: players, icon: "person.2") }
+            if let rating = ratingText(info) { SettingsRow(label: loc("Rating"), value: rating, icon: "checkmark.shield") }
+            if !info.languages.isEmpty { SettingsRow(label: loc("Languages"), value: info.languages.joined(separator: ", "), icon: "character.bubble") }
+            if let size = info.romSize { SettingsRow(label: loc("Size"), value: ByteCountFormatter.string(fromByteCount: size, countStyle: .file), icon: "internaldrive") }
         } header: {
-            SettingsSectionHeader("Details", icon: "list.bullet", accent: .content)
+            SettingsSectionHeader(loc("Details"), icon: "list.bullet", accent: .content)
         }
     }
 
@@ -86,19 +86,19 @@ struct GameInfoSections: View {
     private func controlsSection(_ info: GameInfo) -> some View {
         Section {
             ForEach(info.controls, id: \.self) { c in
-                SettingsRow(label: c.title, value: c.required ? "Required" : "Supported", icon: "gamecontroller")
+                SettingsRow(label: c.title, value: c.required ? loc("Required") : loc("Supported"), icon: "gamecontroller")
             }
         } header: {
-            SettingsSectionHeader("Controllers", icon: "gamecontroller", accent: .content)
+            SettingsSectionHeader(loc("Controllers"), icon: "gamecontroller", accent: .content)
         }
     }
 
     private func identitySection(_ info: GameInfo) -> some View {
         Section {
-            if let t = game.titleId { SettingsRow(label: "Title ID", value: GameMetadata.settingsKey(forTitleId: t), icon: "number") }
-            SettingsRow(label: "Product code", value: info.productCode, icon: "barcode")
-            SettingsRow(label: "GameTDB ID", value: info.id, icon: "number.square")
-            if let region = game.region { SettingsRow(label: "This install", value: region, icon: "globe") }
+            if let t = game.titleId { SettingsRow(label: loc("Title ID"), value: GameMetadata.settingsKey(forTitleId: t), icon: "number") }
+            SettingsRow(label: loc("Product code"), value: info.productCode, icon: "barcode")
+            SettingsRow(label: loc("GameTDB ID"), value: info.id, icon: "number.square")
+            if let region = game.region { SettingsRow(label: loc("This install"), value: region, icon: "globe") }
         } header: {
             SettingsSectionHeader("Identity", icon: "number", accent: .content)
         }
@@ -107,19 +107,19 @@ struct GameInfoSections: View {
     private func matchSection(_ info: GameInfo) -> some View {
         Section {
             if let match {
-                SettingsRow(label: "Matched by", value: match.methodText, icon: "link")
-                SettingsRow(label: "Confidence", value: "\(match.confidenceText) (\(Int((match.confidence * 100).rounded()))%)", icon: "scope")
+                SettingsRow(label: loc("Matched by"), value: match.methodText, icon: "link")
+                SettingsRow(label: loc("Confidence"), value: "\(match.confidenceText) (\(Int((match.confidence * 100).rounded()))%)", icon: "scope")
             }
             Button {
                 showingPicker = true
             } label: {
                 Label("Wrong game? Choose\u{2026}", systemImage: "magnifyingglass")
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .font(.subheadline.weight(.semibold))
             }
         } header: {
             SettingsSectionHeader("Match", icon: "link", accent: .content)
         } footer: {
-            InfoButton.footer("The match is for this install only. Another copy of the same game can match differently.")
+            InfoButton.footer(loc("The match is for this install only. Another copy of the same game can match differently."))
         }
     }
 
@@ -128,7 +128,7 @@ struct GameInfoSections: View {
             if let url = info.gameTdbURL {
                 Link(destination: url) {
                     Label("Open this game on GameTDB", systemImage: "safari")
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .font(.subheadline.weight(.semibold))
                 }
             }
             Text("Game data and covers from GameTDB (gametdb.com). Box art \u{00A9} respective publishers.")
@@ -139,8 +139,8 @@ struct GameInfoSections: View {
     private var emptySection: some View {
         Section {
             ScreenStatusCallout(tone: .info, message: data.isScraping
-                ? "Reading GameTDB's database\u{2026}"
-                : "There is no game data for this install yet. Scrape it from Settings > Cover + data scraping, or here.")
+                ? loc("Reading GameTDB's database\u{2026}")
+                : loc("There is no game data for this install yet. Scrape it from Settings > Cover + data scraping, or here."))
             if data.isScraping {
                 ProgressView(value: data.fraction)
             } else {
@@ -148,17 +148,17 @@ struct GameInfoSections: View {
                     data.scrape(games: gameManager.games)
                 } label: {
                     Label("Scrape now", systemImage: "arrow.down.doc")
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .font(.subheadline.weight(.semibold))
                 }
                 Button {
                     showingPicker = true
                 } label: {
                     Label("Choose the game\u{2026}", systemImage: "magnifyingglass")
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .font(.subheadline.weight(.semibold))
                 }
             }
             if let error = data.scrapeError {
-                Text(error).font(.system(size: 12)).foregroundColor(.red)
+                Text(loc(error)).font(.system(size: 12)).foregroundColor(.red)
             }
         } header: {
             SettingsSectionHeader(game.cardName.name, icon: "info.circle", accent: .content)
@@ -167,8 +167,8 @@ struct GameInfoSections: View {
 
     private func playersText(_ info: GameInfo) -> String? {
         var parts: [String] = []
-        if let n = info.localPlayers { parts.append("Up to \(n) local") }
-        if let n = info.onlinePlayers { parts.append("up to \(n) online") }
+        if let n = info.localPlayers { parts.append(locf("Up to %@ local", n)) }
+        if let n = info.onlinePlayers { parts.append(locf("up to %@ online", n)) }
         else if !info.onlineFeatures.isEmpty { parts.append("online") }
         guard !parts.isEmpty else { return nil }
         let joined = parts.joined(separator: ", ")
@@ -195,11 +195,11 @@ struct GameMatchPickerView: View {
     private var results: [TitleIndexRecord] { data.search(query, preferring: regions) }
 
     var body: some View {
-        NavigationView {
+        EspressUNavigation {
             List {
                 if !data.hasTitleIndex {
                     Section {
-                        ScreenStatusCallout(tone: .info, message: "The title list comes from GameTDB's database. Scrape once to download it.")
+                        ScreenStatusCallout(tone: .info, message: loc("The title list comes from GameTDB's database. Scrape once to download it."))
                         if data.isScraping {
                             ProgressView(value: data.fraction)
                         } else {
@@ -213,7 +213,7 @@ struct GameMatchPickerView: View {
                                 choose(nil)
                             } label: {
                                 Label("Go back to automatic matching", systemImage: "arrow.uturn.backward")
-                                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                                    .font(.subheadline.weight(.semibold))
                             }
                         }
                     }
@@ -221,8 +221,8 @@ struct GameMatchPickerView: View {
                         ForEach(results, id: \.id) { rec in
                             Button { choose(rec.id) } label: {
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(rec.titles.first ?? rec.id)
-                                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                                    Text(loc(rec.titles.first ?? rec.id))
+                                        .font(.subheadline.weight(.semibold))
                                         .foregroundColor(EspressUTheme.brownDarkest)
                                     Text("\(RegionCode(rawValue: rec.region)?.name ?? rec.region), \(rec.id)")
                                         .font(.system(size: 12)).foregroundColor(EspressUTheme.secondaryText)
@@ -238,7 +238,7 @@ struct GameMatchPickerView: View {
                     }
                 }
             }
-            .searchable(text: $query, prompt: "Search GameTDB titles")
+            .searchable(text: $query, prompt: loc("Search GameTDB titles"))
             .navigationTitle("Choose the game")
             .espressuOpaqueNavigationBar(EspressUTheme.formGround)
             #if os(iOS)
@@ -249,7 +249,6 @@ struct GameMatchPickerView: View {
             }
             .onAppear { if query.isEmpty { query = game.displayTitle ?? game.cardName.name } }
         }
-        .navigationViewStyle(.stack)
     }
 
     private func choose(_ tdbID: String?) {

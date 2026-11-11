@@ -19,8 +19,8 @@ enum LibraryTapAction: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .openPage: return "Open its page"
-        case .playImmediately: return "Play immediately"
+        case .openPage: return loc("Open its page")
+        case .playImmediately: return loc("Play immediately")
         }
     }
 
@@ -66,7 +66,7 @@ struct GamePageView: View {
     private var sideBySide: Bool { horizontalSizeClass == .regular || verticalSizeClass == .compact }
 
     var body: some View {
-        NavigationView {
+        EspressUNavigation {
             ZStack {
                 EspressUTheme.backgroundGradient.ignoresSafeArea()
                 Form {
@@ -80,7 +80,7 @@ struct GamePageView: View {
                     removeSection
                 }
             }
-            .navigationTitle(live.cardName.name)
+            .navigationTitle(loc(live.cardName.name))
             .espressuOpaqueNavigationBar(EspressUTheme.formGround)
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
@@ -98,14 +98,13 @@ struct GamePageView: View {
                     LibraryRenameSheet(game: live)
                 }
             }
-            .confirmationDialog(live.removeConfirmTitle, isPresented: $confirmingRemoval, titleVisibility: .visible) {
-                Button(live.removeConfirmButton, role: .destructive) { closeThen(onRemoveGame) }
+            .confirmationDialog(loc(live.removeConfirmTitle), isPresented: $confirmingRemoval, titleVisibility: .visible) {
+                Button(loc(live.removeConfirmButton), role: .destructive) { closeThen(onRemoveGame) }
                 Button("Cancel", role: .cancel) { }
             } message: {
-                Text(live.removeConfirmMessage)
+                Text(loc(live.removeConfirmMessage))
             }
         }
-        .navigationViewStyle(.stack)
         .foregroundColor(EspressUTheme.brownDarkest)
         .onAppear {
             loadSizes()
@@ -149,26 +148,26 @@ struct GamePageView: View {
         }
         .frame(width: width, height: width * 4 / 3)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .shadow(color: EspressUTheme.shadow.opacity(0.3), radius: 14, x: 0, y: 8)
+        .shadow(color: EspressUTheme.shadow.opacity(0.15), radius: 14, x: 0, y: 8)
         .accessibilityHidden(true)
     }
 
     private func titleBlock(alignment: HorizontalAlignment) -> some View {
         VStack(alignment: alignment, spacing: 5) {
-            Text(live.cardName.name)
-                .font(.system(size: 24, weight: .bold, design: .rounded))
+            Text(loc(live.cardName.name))
+                .font(.title2.weight(.bold))
                 .multilineTextAlignment(alignment == .center ? .center : .leading)
                 .fixedSize(horizontal: false, vertical: true)
             if let info = data.info(for: game.id), let by = info.publisher ?? info.developer {
-                Text(by)
-                    .font(.system(size: 14, design: .rounded))
+                Text(loc(by))
+                    .font(.subheadline)
                     .foregroundColor(EspressUTheme.brownMid)
             }
-            Label(live.region ?? "Region unknown", systemImage: "globe")
-                .font(.system(size: 13, design: .rounded))
+            Label(live.region ?? loc("Region unknown"), systemImage: "globe")
+                .font(.footnote)
                 .foregroundColor(EspressUTheme.brownMid)
-            Text(installLine)
-                .font(.system(size: 12, design: .rounded))
+            Text(loc(installLine))
+                .font(.caption)
                 .foregroundColor(EspressUTheme.secondaryText)
                 .multilineTextAlignment(alignment == .center ? .center : .leading)
                 .lineLimit(2)
@@ -181,32 +180,32 @@ struct GamePageView: View {
         } label: {
             HStack(spacing: 10) {
                 Image(systemName: "play.fill").font(.system(size: 18, weight: .bold))
-                Text("Play").font(.system(size: 20, weight: .bold, design: .rounded))
+                Text("Play").font(.title3.weight(.semibold))
             }
             .frame(maxWidth: .infinity, minHeight: 36)
         }
         .buttonStyle(EspressUPrimaryButtonStyle())
         .frame(maxWidth: 340)
-        .accessibilityLabel("Play \(live.cardName.name)")
+        .accessibilityLabel(locf("Play %@", live.cardName.name))
     }
 
     private var yourPlaySection: some View {
         Section {
-            SettingsRow(label: "Last played", value: lastPlayedText, icon: "clock.arrow.circlepath")
-            SettingsRow(label: "Times played", value: "\(stats.entry(for: game.id)?.count ?? 0)", icon: "number")
-            SettingsRow(label: "Size on disk", value: sizeOnDisk.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? "\u{2026}",
+            SettingsRow(label: loc("Last played"), value: lastPlayedText, icon: "clock.arrow.circlepath")
+            SettingsRow(label: loc("Times played"), value: "\(stats.entry(for: game.id)?.count ?? 0)", icon: "number")
+            SettingsRow(label: loc("Size on disk"), value: sizeOnDisk.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? "\u{2026}",
                         icon: "internaldrive")
             if live.titleId != nil {
-                SettingsRow(label: "Shader cache", value: shaderBytes.map { ShaderCacheInfo.formatBytes($0) } ?? "\u{2026}",
+                SettingsRow(label: loc("Shader cache"), value: shaderBytes.map { ShaderCacheInfo.formatBytes($0) } ?? "\u{2026}",
                             icon: "externaldrive")
             }
         } header: {
-            SettingsSectionHeader("Your play", icon: "clock.arrow.circlepath", accent: .content)
+            SettingsSectionHeader(loc("Your play"), icon: "clock.arrow.circlepath", accent: .content)
         }
     }
 
     private var lastPlayedText: String {
-        guard let entry = stats.entry(for: game.id) else { return "Not yet" }
+        guard let entry = stats.entry(for: game.id) else { return loc("Not yet") }
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .full
         return formatter.localizedString(for: entry.last, relativeTo: Date())
@@ -216,47 +215,47 @@ struct GamePageView: View {
         let key = live.settingsKey
         return Section {
             Button { sheet = .settings } label: {
-                rowLabel("Game settings", systemImage: "slider.horizontal.3", chevron: true)
+                rowLabel(loc("Game settings"), systemImage: "slider.horizontal.3", chevron: true)
             }
             Toggle(isOn: Binding(
                 get: { live.isFavorite },
                 set: { _ in gameManager.toggleFavorite(live) }
             )) {
-                rowLabel("Favourite", systemImage: live.isFavorite ? "heart.fill" : "heart")
+                rowLabel(loc("Favourite"), systemImage: live.isFavorite ? "heart.fill" : "heart")
             }
             .tint(EspressUTheme.accentText)
             Toggle(isOn: Binding(
                 get: { store.effectivePreCompileShaders(for: key) },
                 set: { store.setPreCompileShaders($0, for: key) }
             )) {
-                rowLabel("Compile shaders in the background", systemImage: "bolt.fill")
+                rowLabel(loc("Compile shaders in the background"), systemImage: "bolt.fill")
             }
             .tint(EspressUTheme.accentText)
             if store.overrides(for: key).preCompileShaders != nil {
                 Button { store.setPreCompileShaders(nil, for: key) } label: {
-                    rowLabel("Use the global shader setting", systemImage: "arrow.uturn.backward")
+                    rowLabel(loc("Use the global shader setting"), systemImage: "arrow.uturn.backward")
                 }
             }
             Button { sheet = .cover } label: {
-                rowLabel("Change cover", systemImage: "photo")
+                rowLabel(loc("Change cover"), systemImage: "photo")
             }
             if gameManager.hasManualCoverOverride(forGameID: game.id) {
                 Button(role: .destructive) {
                     gameManager.removeManualCover(forGameID: game.id)
                 } label: {
-                    DestructiveSettingsLabel(title: "Remove custom cover", systemImage: "photo.badge.minus")
+                    DestructiveSettingsLabel(title: loc("Remove custom cover"), systemImage: "photo.badge.minus")
                 }
             }
             Button { sheet = .rename } label: {
-                rowLabel("Rename", systemImage: "pencil")
+                rowLabel(loc("Rename"), systemImage: "pencil")
             }
             if names.name(for: live.installKey) != nil {
                 Button { names.set(nil, for: live.installKey) } label: {
-                    rowLabel("Reset to original title", systemImage: "arrow.uturn.backward")
+                    rowLabel(loc("Reset to original title"), systemImage: "arrow.uturn.backward")
                 }
             }
         } header: {
-            SettingsSectionHeader("Manage", icon: "slider.horizontal.3", accent: .core)
+            SettingsSectionHeader(loc("Manage"), icon: "slider.horizontal.3", accent: .core)
         }
     }
 
@@ -264,28 +263,28 @@ struct GamePageView: View {
         let installed = DlcUpdateImport.installedContent(for: live)
         return Section {
             Button { closeThen(onImportUpdate) } label: {
-                rowLabel("Import update", systemImage: "arrow.triangle.2.circlepath")
+                rowLabel(loc("Import update"), systemImage: "arrow.triangle.2.circlepath")
             }
             Button { closeThen(onImportDLC) } label: {
-                rowLabel("Import DLC", systemImage: "shippingbox")
+                rowLabel(loc("Import DLC"), systemImage: "shippingbox")
             }
             if installed.hasUpdate {
                 Button(role: .destructive) { closeThen(onRemoveUpdate) } label: {
-                    DestructiveSettingsLabel(title: "Remove update", systemImage: "trash")
+                    DestructiveSettingsLabel(title: loc("Remove update"), systemImage: "trash")
                 }
             }
             if installed.hasDLC {
                 Button(role: .destructive) { closeThen(onRemoveDLC) } label: {
-                    DestructiveSettingsLabel(title: "Remove DLC", systemImage: "trash")
+                    DestructiveSettingsLabel(title: loc("Remove DLC"), systemImage: "trash")
                 }
             }
             if gameSupportsDecryptToFiles(romPath: live.romPath) {
                 Button { closeThen(onDecrypt) } label: {
-                    rowLabel("Decrypt", systemImage: "lock.open")
+                    rowLabel(loc("Decrypt"), systemImage: "lock.open")
                 }
             }
         } header: {
-            SettingsSectionHeader("Updates and files", icon: "shippingbox", accent: .io)
+            SettingsSectionHeader(loc("Updates and files"), icon: "shippingbox", accent: .io)
         }
     }
 
@@ -297,16 +296,16 @@ struct GamePageView: View {
                 DestructiveSettingsLabel(title: live.removeActionTitle, systemImage: "trash")
             }
         } footer: {
-            Text(live.isExternal
-                 ? "Only takes the game out of your library. Its file stays where it is. Your saves and options are kept."
-                 : "Frees up the space the game uses. Your saves and options are kept.")
+            Text(loc(live.isExternal
+                 ? loc("Only takes the game out of your library. Its file stays where it is. Your saves and options are kept.")
+                 : loc("Frees up the space the game uses. Your saves and options are kept.")))
         }
     }
 
     private func rowLabel(_ title: String, systemImage: String, chevron: Bool = false) -> some View {
         HStack {
-            Label(title, systemImage: systemImage)
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
+            Label(loc(title), systemImage: systemImage)
+                .font(.subheadline.weight(.semibold))
             if chevron {
                 Spacer(minLength: 8)
                 Image(systemName: "chevron.right")

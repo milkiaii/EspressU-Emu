@@ -1,4 +1,5 @@
 #include "Cafe/HW/Latte/Core/Latte.h"
+#include "Cafe/HW/Latte/Core/LatteTextureAsyncLoad.h"
 #include "Cafe/HW/Latte/Core/LatteShader.h"
 #include "Cafe/HW/Latte/Core/LattePerformanceMonitor.h"
 #include "Cafe/HW/Latte/Core/LatteTexture.h"
@@ -553,13 +554,6 @@ bool __LatteTexture_IsBlockedFormatRelation(LatteTexture* texture1, LatteTexture
 			return true;
 	}
 
-#ifdef ENABLE_VULKAN
-	if (g_renderer->GetType() == RendererAPI::Vulkan)
-	{
-		if (texture1->format == Latte::E_GX2SURFFMT::D32_FLOAT && Latte::GetHWFormat(texture2->format) == Latte::E_HWSURFFMT::HWFMT_8_24)
-			return true;
-	}
-#endif
 
 	return false;
 }
@@ -1075,8 +1069,13 @@ LatteTextureView* LatteTC_GetTextureSliceViewOrTryCreate(MPTR srcImagePtr, MPTR 
 
 void LatteTexture_UpdateDataToLatest(LatteTexture* texture)
 {
+	// Used before copies, render target use and readbacks: those need the real data, not a pending async load.
 	if (LatteTC_HasTextureChanged(texture))
+	{
+		LatteTextureAsync::SyncScope sync;
 		LatteTexture_ReloadData(texture);
+	}
+	LatteTextureAsync::Finish(texture);
 
 	if (texture->reloadFromDynamicTextures)
 	{
@@ -1292,6 +1291,7 @@ LatteTexture::~LatteTexture()
 
 void LatteTexture_UpdateCacheFromDynamicTextures(LatteTexture* textureDest)
 {
+	LatteTextureAsync::Finish(textureDest);
 	LatteTexture_UpdateTextureFromDynamicChanges(textureDest);
 }
 

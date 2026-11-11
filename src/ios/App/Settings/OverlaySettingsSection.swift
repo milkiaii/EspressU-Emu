@@ -14,6 +14,9 @@ enum OverlaySettings {
     static let fpsKey = "espressu.overlay.fps"
     static let defaultFps = true
 
+    static let showFrameGenBreakdownKey = "espressu.overlay.showFrameGenBreakdown"
+    static let defaultShowFrameGenBreakdown = false
+
     static let drawcallsKey = "espressu.overlay.drawcalls"
     static let defaultDrawcalls = false
 
@@ -31,6 +34,12 @@ enum OverlaySettings {
 
     static let debugKey = "espressu.overlay.debug"
     static let defaultDebug = true
+
+    static func applyFrameGenBreakdownToBridge() {
+        let enabled = UserDefaults.standard.object(forKey: showFrameGenBreakdownKey) as? Bool
+            ?? defaultShowFrameGenBreakdown
+        cemu_bridge_set_overlay_show_framegen_breakdown(enabled)
+    }
 }
 
 func packedColourBinding(_ value: Binding<Int>) -> Binding<Color> {
@@ -87,11 +96,11 @@ struct OverlaySettingsSection: View {
                 debugToggle
             }
         } header: {
-            SettingsSectionHeader("Performance Overlay", icon: "speedometer", accent: .io)
+            SettingsSectionHeader(loc("Performance Overlay"), icon: "speedometer", accent: .io)
         } footer: {
             InfoButton.footer(
-                "Shows FPS, CPU and RAM use on screen. Pick a corner to turn it on.",
-                title: "Performance Overlay",
+                loc("Shows FPS, CPU and RAM use on screen. Pick a corner to turn it on."),
+                title: loc("Performance Overlay"),
                 text: fullText)
         }
         .foregroundColor(EspressUTheme.brownDarkest)
@@ -100,10 +109,10 @@ struct OverlaySettingsSection: View {
     private var positionPicker: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Position")
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .font(.footnote.weight(.semibold))
             Picker("Position", selection: $positionRaw) {
                 ForEach(ScreenPosition.allCases) { position in
-                    Text(position.title).tag(position.rawValue)
+                    Text(loc(position.title)).tag(position.rawValue)
                 }
             }
             .pickerStyle(.menu)
@@ -116,8 +125,8 @@ struct OverlaySettingsSection: View {
     }
 
     private var textColorField: some View {
-        ColorPicker("Text colour", selection: packedColourBinding($textColor), supportsOpacity: false)
-            .font(.system(size: 15, weight: .semibold, design: .rounded))
+        ColorPicker(loc("Text colour"), selection: packedColourBinding($textColor), supportsOpacity: false)
+            .font(.subheadline.weight(.semibold))
             .disabled(isOff)
             .onValueChange(of: textColor) { newValue in
                 cemu_bridge_set_overlay_text_color(UInt32(truncatingIfNeeded: newValue))
@@ -128,7 +137,7 @@ struct OverlaySettingsSection: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text("Text size")
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .font(.footnote.weight(.semibold))
                 Spacer()
                 Text("\(textScale)%")
                     .font(.system(size: 13, design: .monospaced))
@@ -147,7 +156,7 @@ struct OverlaySettingsSection: View {
     private var fpsToggle: some View {
         Toggle(isOn: $fpsEnabled) {
             Text("Show FPS")
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .font(.subheadline.weight(.semibold))
         }
         .tint(EspressUTheme.accentText)
         .disabled(isOff)
@@ -158,8 +167,8 @@ struct OverlaySettingsSection: View {
 
     private var drawcallsToggle: some View {
         Toggle(isOn: $drawcallsEnabled) {
-            Text("Show draw calls")
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
+            Text(loc("Show draw calls"))
+                .font(.subheadline.weight(.semibold))
         }
         .tint(EspressUTheme.accentText)
         .disabled(isOff)
@@ -171,7 +180,7 @@ struct OverlaySettingsSection: View {
     private var cpuUsageToggle: some View {
         Toggle(isOn: $cpuUsageEnabled) {
             Text("Show CPU usage")
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .font(.subheadline.weight(.semibold))
         }
         .tint(EspressUTheme.accentText)
         .disabled(isOff)
@@ -183,7 +192,7 @@ struct OverlaySettingsSection: View {
     private var cpuPerCoreUsageToggle: some View {
         Toggle(isOn: $cpuPerCoreUsageEnabled) {
             Text("Show CPU usage per core")
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .font(.subheadline.weight(.semibold))
         }
         .tint(EspressUTheme.accentText)
         .disabled(isOff)
@@ -195,7 +204,7 @@ struct OverlaySettingsSection: View {
     private var ramUsageToggle: some View {
         Toggle(isOn: $ramUsageEnabled) {
             Text("Show RAM usage")
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .font(.subheadline.weight(.semibold))
         }
         .tint(EspressUTheme.accentText)
         .disabled(isOff)
@@ -207,7 +216,7 @@ struct OverlaySettingsSection: View {
     private var vramUsageToggle: some View {
         Toggle(isOn: $vramUsageEnabled) {
             Text("Show VRAM usage")
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .font(.subheadline.weight(.semibold))
         }
         .tint(EspressUTheme.accentText)
         .disabled(isOff)
@@ -218,8 +227,8 @@ struct OverlaySettingsSection: View {
 
     private var debugToggle: some View {
         Toggle(isOn: $debugEnabled) {
-            Text("Show debug info")
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
+            Text(loc("Show debug info"))
+                .font(.subheadline.weight(.semibold))
         }
         .tint(EspressUTheme.accentText)
         .disabled(isOff)
@@ -230,9 +239,9 @@ struct OverlaySettingsSection: View {
 
     private var fullText: String {
         """
-        The overlay is the engine's own readout, like desktop Cemu's. Position picks a corner of the TV screen; Off hides it, and the other rows stay dimmed until a corner is chosen.
+        The overlay is the engine's own readout, like desktop Cemu's. Position picks a corner of the TV screen. Off hides the performance overlay.
 
-        FPS is the frame rate the game is producing. CPU, per-core CPU, RAM and VRAM usage measure EspressU itself, not the whole device. Draw calls counts draw commands in the current frame. Debug info adds a few lines of renderer state.
+        With frame generation active, the FPS total includes generated frames. CPU, per-core CPU, RAM and VRAM usage measure EspressU itself, not the whole device. Draw calls counts draw commands in the current frame. Debug info adds a few lines of renderer state.
 
         The panel only appears while at least one of FPS, draw calls, CPU, per-core CPU or RAM is on. VRAM usage and debug info are extra lines inside it, so on their own they show nothing.
 

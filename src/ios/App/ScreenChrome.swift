@@ -22,11 +22,11 @@ struct ScreenEmptyState: View {
         if UIStyle.isClassic {
             return AnyView(
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(headline)
-                        .font(.system(size: 13, design: .rounded))
+                    Text(loc(headline))
+                        .font(.footnote)
                         .foregroundColor(EspressUTheme.brownMid)
-                    Text(message)
-                        .font(.system(size: 13, design: .rounded))
+                    Text(loc(message))
+                        .font(.footnote)
                         .foregroundColor(EspressUTheme.brownMid)
                 }
                 .fixedSize(horizontal: false, vertical: true)
@@ -48,22 +48,22 @@ struct ScreenEmptyState: View {
             .frame(width: 64, height: 64)
             .accessibilityHidden(true)
 
-            Text(headline)
-                .font(.system(size: 17, weight: .bold, design: .rounded))
+            Text(loc(headline))
+                .font(.body.weight(.semibold))
                 .foregroundColor(EspressUTheme.brownDarkest)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
 
-            Text(message)
-                .font(.system(size: 13, design: .rounded))
+            Text(loc(message))
+                .font(.footnote)
                 .foregroundColor(EspressUTheme.brownMid)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
 
             if let actionTitle, let action {
                 Button(action: action) {
-                    Text(actionTitle)
+                    Text(loc(actionTitle))
                 }
                 .buttonStyle(EspressUPrimaryButtonStyle())
                 .padding(.top, 2)
@@ -105,8 +105,8 @@ struct ScreenStatusCallout: View {
                 .foregroundColor(tone.accent)
                 .accessibilityHidden(true)
 
-            Text(message)
-                .font(.system(size: 13, weight: .medium, design: .rounded))
+            Text(loc(message))
+                .font(.footnote.weight(.medium))
                 .foregroundColor(EspressUTheme.brownDarkest)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -124,12 +124,12 @@ struct ScreenSlotBadge: View {
             Circle()
                 .fill(isFilled ? EspressUTheme.pixelBlue : EspressUTheme.wrapper)
             if isFilled {
-                Text(label)
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                Text(loc(label))
+                    .font(.footnote.weight(.semibold))
                     .foregroundColor(LegibleInk.on(EspressUTheme.pixelBlue, light: EspressUTheme.sparkleCream))
             } else {
-                Text(label)
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                Text(loc(label))
+                    .font(.footnote.weight(.semibold))
                     .foregroundColor(LegibleInk.ensure(EspressUTheme.brownMid, on: EspressUTheme.wrapper))
             }
         }
@@ -145,7 +145,7 @@ struct ScreenChip: View {
     var body: some View {
         if UIStyle.isClassic {
             return AnyView(
-                Text(text)
+                Text(loc(text))
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
             )
@@ -154,8 +154,8 @@ struct ScreenChip: View {
     }
 
     private var modernBody: some View {
-        Text(text)
-            .font(.system(size: 11, weight: .semibold, design: .rounded))
+        Text(loc(text))
+            .font(.caption2.weight(.semibold))
             .foregroundColor(isMuted
                              ? LegibleInk.ensure(EspressUTheme.brownMid, on: EspressUTheme.wrapper)
                              : LegibleInk.on(EspressUTheme.pixelBlue, light: EspressUTheme.sparkleCream))
@@ -199,7 +199,7 @@ extension View {
                                 on: EspressUTheme.wrapper)
 
         return self
-            .font(.system(size: 13, weight: .semibold, design: .rounded))
+            .font(.footnote.weight(.semibold))
             .foregroundColor(foreground)
             .padding(.horizontal, 12)
             .padding(.vertical, 7)

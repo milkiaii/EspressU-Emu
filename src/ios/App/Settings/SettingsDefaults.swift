@@ -17,14 +17,10 @@ enum SettingsDefaults {
         "espressu.theme.selectedId",
         "espressu.cpu.autoDemoted",
         "espressu.cpu.autoMultiPending",
-        "espressu.render.vulkanFailedBuild",
-        "espressu.render.vulkanFailureReason",
         "espressu.timebase.clearedAccidentalChoice",
     ]
 
     private static let alwaysExcludedPrefixes = ["espressu.library.", "espressu.graphicPacks."]
-
-    private static let perGamePrefix = "espressu.touchlab.adaptive."
 
     private static let notPortableKeys: Set<String> = [
         PerGameSettingsStore.storageKey,
@@ -43,7 +39,7 @@ enum SettingsDefaults {
         if alwaysExcludedKeys.contains(key) || notPortableKeys.contains(key) { return false }
         if alwaysExcludedPrefixes.contains(where: { key.hasPrefix($0) }) { return false }
         if notPortablePrefixes.contains(where: { key.hasPrefix($0) }) { return false }
-        return !key.hasPrefix(perGamePrefix)
+        return true
     }
 
     @MainActor
@@ -61,15 +57,12 @@ enum SettingsDefaults {
         for key in defaults.dictionaryRepresentation().keys where key.hasPrefix("espressu.") {
             if excluded.contains(key) { continue }
             if alwaysExcludedPrefixes.contains(where: { key.hasPrefix($0) }) { continue }
-            if !includingPerGameOverrides && key.hasPrefix(perGamePrefix) { continue }
             defaults.removeObject(forKey: key)
         }
         if includingPerGameOverrides {
             PerGameSettingsStore.shared.removeAllOverrides()
         }
         UIStyleStore.shared.reloadFromDefaults()
-        ControllerCustomLayout.shared.resetAll()
-        PreviewPadStore.shared.reloadFromDefaults()
         pushDefaultsToBridge()
         DevicePairing.shared.cancel()
         StikJITSetup.removePairingFile()
@@ -79,6 +72,7 @@ enum SettingsDefaults {
 
     @MainActor
     private static func pushDefaultsToBridge() {
+        GameLanguage.applyStoredToBridge()
         cemu_bridge_set_recompiler_enabled(true)
         cemu_bridge_set_favour_accuracy(false)
         cemu_bridge_set_favour_performance(FavourPerformance.defaultValue)
@@ -109,6 +103,7 @@ enum SettingsDefaults {
         cemu_bridge_set_overlay_text_color(UInt32(truncatingIfNeeded: OverlaySettings.defaultTextColor))
         cemu_bridge_set_overlay_text_scale(Int32(OverlaySettings.defaultTextScale))
         cemu_bridge_set_overlay_fps(OverlaySettings.defaultFps)
+        cemu_bridge_set_overlay_show_framegen_breakdown(OverlaySettings.defaultShowFrameGenBreakdown)
         cemu_bridge_set_overlay_drawcalls(OverlaySettings.defaultDrawcalls)
         cemu_bridge_set_overlay_cpu_usage(OverlaySettings.defaultCpuUsage)
         cemu_bridge_set_overlay_cpu_per_core_usage(OverlaySettings.defaultCpuPerCoreUsage)

@@ -84,7 +84,7 @@ struct ContentView: View {
             get: { sharedImportError != nil }, set: { if !$0 { sharedImportError = nil } })) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text(sharedImportError ?? "")
+            Text(loc(sharedImportError ?? ""))
         }
         .stikJITOverlay()
         .onReceive(NotificationCenter.default.publisher(for: .espressuReopenOnboarding)) { _ in
@@ -109,18 +109,13 @@ struct BootFailureView: View {
 
     private var name: String { game.displayTitle ?? game.title }
 
-    private static var crashLogHint: String {
-        let path = String(cString: cemu_bridge_crash_log_path())
-        guard !path.isEmpty else {
-            return "If you report this, include log.txt. No crash log could be opened this run, so there is no CemuCrashLog.txt to send."
-        }
-        return "If you report this, include log.txt and CemuCrashLog.txt. They are in:\n\(path)"
-    }
+    private static let crashLogHint =
+        loc("If you report this, share the EspressU report: Settings > Diagnostics > Share EspressU report.")
 
     private var title: String {
-        if needsCleanRestart { return "Restart needed before \(name)" }
-        if driveWasLost { return "\(name) stopped: drive disconnected" }
-        return endedWhileRunning ? "\(name) stopped" : "Couldn't start \(name)"
+        if needsCleanRestart { return locf("Restart needed before %@", name) }
+        if driveWasLost { return locf("%@ stopped: drive disconnected", name) }
+        return endedWhileRunning ? "\(name) stopped" : locf("Couldn't start %@", name)
     }
 
     @State private var keysAdded: Int?
@@ -132,12 +127,12 @@ struct BootFailureView: View {
     }
 
     private var plainLine: String {
-        if needsCleanRestart { return "Close EspressU and open it again from your Home Screen, then start a game." }
-        if driveWasLost { return "The drive or folder this game is stored on was disconnected. Connect it again, go back and start the game again." }
-        if endedWhileRunning { return "The game stopped. Go back and try it again. If it keeps happening, close and reopen EspressU." }
+        if needsCleanRestart { return loc("Close EspressU and open it again from your Home Screen, then start a game.") }
+        if driveWasLost { return loc("The drive or folder this game is stored on was disconnected. Connect it again, go back and start the game again.") }
+        if endedWhileRunning { return loc("The game stopped. Go back and try it again. If it keeps happening, close and reopen EspressU.") }
         if needsKeys { return "This game is encrypted, so it needs a keys.txt file to start." }
-        if let keysAdded { return "Added \(keysAdded) key\(keysAdded == 1 ? "" : "s"). Go back and start the game again. If it still won't start, close and reopen EspressU." }
-        return "This game didn't start. Try again. If it keeps happening, close and reopen EspressU."
+        if let keysAdded { return locn(keysAdded, "Added %@ key. Go back and start the game again. If it still won't start, close and reopen EspressU.", "Added %@ keys. Go back and start the game again. If it still won't start, close and reopen EspressU.") }
+        return loc("This game didn't start. Try again. If it keeps happening, close and reopen EspressU.")
     }
 
     var body: some View {
@@ -177,21 +172,21 @@ struct BootFailureView: View {
                 .foregroundColor(EspressUTheme.alertOnDark)
                 .accessibilityHidden(true)
 
-            Text(title)
-                .font(.system(.headline, design: .rounded))
+            Text(loc(title))
+                .font(.system(.headline))
                 .foregroundColor(.white)
                 .multilineTextAlignment(.center)
                 .accessibilityAddTraits(.isHeader)
 
-            Text(plainLine)
-                .font(.system(.footnote, design: .rounded))
+            Text(loc(plainLine))
+                .font(.system(.footnote))
                 .foregroundColor(.white.opacity(0.85))
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 480)
 
             if let keysError {
-                Text(keysError)
-                    .font(.system(.footnote, design: .rounded))
+                Text(loc(keysError))
+                    .font(.system(.footnote))
                     .foregroundColor(EspressUTheme.alertOnDark)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: 480)
@@ -203,7 +198,7 @@ struct BootFailureView: View {
                         Image(systemName: "key.fill")
                             .font(.system(size: 14, weight: .semibold))
                         Text("Import keys.txt")
-                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                            .font(.subheadline.weight(.semibold))
                     }
                 }
                 .buttonStyle(EspressUPrimaryButtonStyle())
@@ -211,13 +206,13 @@ struct BootFailureView: View {
 
             DisclosureGroup("Details") {
                 VStack(spacing: 10) {
-                    Text(message.isEmpty ? "The engine didn't report a reason." : message)
-                        .font(.system(.footnote, design: .rounded))
+                    Text(loc(message.isEmpty ? "The engine didn't report a reason." : message))
+                        .font(.system(.footnote))
                         .foregroundColor(.white.opacity(0.75))
                         .multilineTextAlignment(.center)
                         .textSelection(.enabled)
-                    Text(Self.crashLogHint)
-                        .font(.system(.caption2, design: .rounded))
+                    Text(loc(Self.crashLogHint))
+                        .font(.system(.caption2))
                         .foregroundColor(.white.opacity(0.6))
                         .multilineTextAlignment(.center)
                         .textSelection(.enabled)
@@ -225,7 +220,7 @@ struct BootFailureView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.top, 8)
             }
-            .font(.system(.footnote, design: .rounded))
+            .font(.system(.footnote))
             .foregroundColor(.white.opacity(0.75))
             .accentColor(.white.opacity(0.75))
             .frame(maxWidth: 480)
@@ -233,7 +228,7 @@ struct BootFailureView: View {
             if needsCleanRestart {
                 Button(action: { fflush(nil); _exit(0) }) {
                     Text("Close EspressU")
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .font(.subheadline.weight(.semibold))
                 }
                 .buttonStyle(EspressUPrimaryButtonStyle())
                 .padding(.top, 4)
@@ -244,7 +239,7 @@ struct BootFailureView: View {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 14, weight: .semibold))
                     Text("Back to games")
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .font(.subheadline.weight(.semibold))
                 }
                 .foregroundColor(.white)
                 .padding(.horizontal, 14)
@@ -269,11 +264,11 @@ enum LibrarySortOrder: String, CaseIterable, Hashable {
 
     var title: String {
         switch self {
-        case .title: return "Title"
-        case .recentlyAdded: return "Recently added"
-        case .favoritesFirst: return "Favourites first"
-        case .lastPlayed: return "Last played"
-        case .mostPlayed: return "Most played"
+        case .title: return loc("Title")
+        case .recentlyAdded: return loc("Recently added")
+        case .favoritesFirst: return loc("Favourites first")
+        case .lastPlayed: return loc("Last played")
+        case .mostPlayed: return loc("Most played")
         }
     }
 
@@ -334,8 +329,8 @@ struct LibraryActivityBanner: View {
         HStack(spacing: 10) {
             ProgressView()
                 .tint(EspressUTheme.brownDarkest)
-            Text(text)
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
+            Text(loc(text))
+                .font(.footnote.weight(.semibold))
                 .foregroundColor(EspressUTheme.brownDarkest)
                 .lineLimit(1)
         }
@@ -347,7 +342,7 @@ struct LibraryActivityBanner: View {
             RoundedRectangle(cornerRadius: 14)
                 .stroke(EspressUTheme.wrapper, lineWidth: 1)
         )
-        .shadow(color: EspressUTheme.shadow.opacity(0.15), radius: 8, x: 0, y: 4)
+        .shadow(color: EspressUTheme.shadow.opacity(0.07), radius: 8, x: 0, y: 4)
     }
 }
 
@@ -355,8 +350,8 @@ struct LaunchNoticeBanner: View {
     let text: String
 
     var body: some View {
-        Text(text)
-            .font(.system(size: 13, weight: .semibold, design: .rounded))
+        Text(loc(text))
+            .font(.footnote.weight(.semibold))
             .foregroundColor(EspressUTheme.brownDarkest)
             .multilineTextAlignment(.center)
             .padding(.horizontal, 14)
@@ -367,7 +362,7 @@ struct LaunchNoticeBanner: View {
                 RoundedRectangle(cornerRadius: 14)
                     .stroke(EspressUTheme.wrapper, lineWidth: 1)
             )
-            .shadow(color: EspressUTheme.shadow.opacity(0.15), radius: 8, x: 0, y: 4)
+            .shadow(color: EspressUTheme.shadow.opacity(0.07), radius: 8, x: 0, y: 4)
             .frame(maxWidth: 520)
     }
 }
@@ -520,7 +515,7 @@ struct GameBrowserView: View {
             showingFavorites: $showingFavorites,
             searchText: $searchText,
             activityText: {
-                if case .copying(let name) = gameManager.importState { return "Importing \(name)\u{2026}" }
+                if case .copying(let name) = gameManager.importState { return locf("Importing %@\u{2026}", name) }
                 return removingContentMessage
             }(),
             actions: EspressUHomeActions(
@@ -552,13 +547,13 @@ struct GameBrowserView: View {
             Group {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Espress")
-                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                        .font(.title.weight(.bold))
                         .foregroundColor(EspressUTheme.onBackground)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
 
                     Text("U")
-                        .font(.system(size: 18, weight: .semibold, design: .rounded))
+                        .font(.headline)
                         .foregroundColor(EspressUTheme.onBackgroundAccent)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
@@ -586,7 +581,7 @@ struct GameBrowserView: View {
                     }
                     .buttonStyle(EspressUSecondaryButtonStyle())
                     .frame(minWidth: 44, minHeight: 44)
-                    .accessibilityLabel(showingFavorites ? "Show all games" : "Show favourites only")
+                    .accessibilityLabel(showingFavorites ? loc("Show all games") : loc("Show favourites only"))
 
                     Menu {
                         Button {
@@ -637,15 +632,15 @@ struct GameBrowserView: View {
 
                     VStack(alignment: .trailing, spacing: 2) {
                         Text("\(filteredGames.count)")
-                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                            .font(.subheadline.weight(.semibold))
                             .foregroundColor(EspressUTheme.brownDarkest)
                         Text("games")
-                            .font(.system(size: 10, weight: .semibold, design: .rounded))
+                            .font(.caption2.weight(.semibold))
                             .foregroundColor(EspressUTheme.brownMid)
                     }
                     .padding(.horizontal, 10)
                     .padding(.vertical, 5)
-                    .background(EspressUTheme.cream, in: RoundedRectangle(cornerRadius: EspressUTheme.Radius.chip, style: .continuous))
+                    .espressUSurface(RoundedRectangle(cornerRadius: EspressUTheme.Radius.chip, style: .continuous))
                     .accessibilityElement(children: .combine)
                 }
             }
@@ -664,9 +659,9 @@ struct GameBrowserView: View {
                             sortOrder = order
                         } label: {
                             if sortOrder == order {
-                                Label(order.title, systemImage: "checkmark")
+                                Label(loc(order.title), systemImage: "checkmark")
                             } else {
-                                Label(order.title, systemImage: order.systemImage)
+                                Label(loc(order.title), systemImage: order.systemImage)
                             }
                         }
                     }
@@ -728,7 +723,7 @@ struct GameBrowserView: View {
         .onDrop(of: [UTType.item], isTargeted: nil, perform: handleDrop)
         .overlay(alignment: .top) {
             if case .copying(let name) = gameManager.importState {
-                LibraryActivityBanner(text: "Importing \(name)…")
+                LibraryActivityBanner(text: locf("Importing %@…", name))
                     .padding(.top, 8)
             } else if let removingContentMessage {
                 LibraryActivityBanner(text: removingContentMessage)
@@ -776,7 +771,7 @@ struct GameBrowserView: View {
 
     private func removeGameNow(_ game: GameMetadata) {
         pendingGameRemoval = nil
-        removingContentMessage = "Removing \"\(game.cardName.name)\"\u{2026}"
+        removingContentMessage = locf("Removing \"%@\"\u{2026}", game.cardName.name)
         Task {
             do {
                 try await gameManager.removeGame(game)
@@ -832,40 +827,40 @@ struct GameBrowserView: View {
             .alert("Added", isPresented: .constant(dlcUpdateSuccessMessage != nil), presenting: dlcUpdateSuccessMessage) { _ in
                 Button("OK") { dlcUpdateSuccessMessage = nil }
             } message: { message in
-                Text(message)
+                Text(loc(message))
             }
             .alert("Couldn't add that game", isPresented: .constant(romImportErrorMessage != nil), presenting: romImportErrorMessage) { _ in
                 Button("OK") { romImportErrorMessage = nil }
             } message: { message in
-                Text(message)
+                Text(loc(message))
             }
             .alert("Couldn't import", isPresented: .constant(dlcImportErrorMessage != nil), presenting: dlcImportErrorMessage) { _ in
                 Button("OK") { dlcImportErrorMessage = nil }
             } message: { message in
-                Text(message)
+                Text(loc(message))
             }
             .alert(
-                "No automatic match",
+                loc("No automatic match"),
                 isPresented: .constant(pendingManualMatchConfirmation != nil),
                 presenting: pendingManualMatchConfirmation
             ) { pending in
-                Button("Add to \"\(pending.game.title)\"") {
+                Button(locf("Add to \"%@\"", pending.game.title)) {
                     pendingManualMatchConfirmation = nil
                     runDlcUpdateImport(from: pending.source, kind: pending.kind, longPressedGame: pending.game, manualMatch: pending.game)
                 }
                 Button("Cancel", role: .cancel) { pendingManualMatchConfirmation = nil }
             } message: { pending in
-                Text("Couldn't automatically match this \(pending.kind.displayName) to a game already in your library. Add it to \"\(pending.game.title)\" - the game you long-pressed?")
+                Text(locf("Couldn't automatically match this %@ to a game already in your library. Add it to \"%@\" - the game you long-pressed?", pending.kind.displayName, pending.game.title))
             }
             .confirmationDialog(
-                "Remove content?",
+                loc("Remove content?"),
                 isPresented: .constant(pendingRemoval != nil),
                 titleVisibility: .visible,
                 presenting: pendingRemoval
             ) { pending in
                 Button("Remove", role: .destructive) {
                     pendingRemoval = nil
-                    removingContentMessage = "Removing \(pending.kind.displayName) for \"\(pending.game.title)\"…"
+                    removingContentMessage = locf("Removing %@ for \"%@\"…", pending.kind.displayName, pending.game.title)
                     Task {
                         do {
                             _ = try await Task.detached {
@@ -879,20 +874,20 @@ struct GameBrowserView: View {
                 }
                 Button("Cancel", role: .cancel) { pendingRemoval = nil }
             } message: { pending in
-                Text("Remove the \(pending.kind.displayName) installed for \"\(pending.game.title)\"? This can't be undone - you'll need to import it again.")
+                Text(locf("Remove the %@ installed for \"%@\"? This can't be undone - you'll need to import it again.", pending.kind.displayName, pending.game.title))
             }
             .confirmationDialog(
-                pendingGameRemoval?.removeConfirmTitle ?? "Remove this game?",
+                pendingGameRemoval?.removeConfirmTitle ?? loc("Remove this game?"),
                 isPresented: .constant(pendingGameRemoval != nil),
                 titleVisibility: .visible,
                 presenting: pendingGameRemoval
             ) { pending in
-                Button(pending.removeConfirmButton, role: .destructive) {
+                Button(loc(pending.removeConfirmButton), role: .destructive) {
                     removeGameNow(pending)
                 }
                 Button("Cancel", role: .cancel) { pendingGameRemoval = nil }
             } message: { pending in
-                Text(pending.removeConfirmMessage)
+                Text(loc(pending.removeConfirmMessage))
             }
             .alert("Connect the drive to play", isPresented: .constant(gameManager.launchBlockedMessage != nil), presenting: gameManager.launchBlockedMessage) { _ in
                 Button("Check again") {
@@ -901,10 +896,10 @@ struct GameBrowserView: View {
                 }
                 Button("OK", role: .cancel) { gameManager.launchBlockedMessage = nil }
             } message: { message in
-                Text(message)
+                Text(loc(message))
             }
             .confirmationDialog(
-                "Replace existing file?",
+                loc("Replace existing file?"),
                 isPresented: .constant(pendingOverwriteConfirmation != nil),
                 titleVisibility: .visible,
                 presenting: pendingOverwriteConfirmation
@@ -920,7 +915,7 @@ struct GameBrowserView: View {
                     resume(false)
                 }
             } message: { pending in
-                Text("\"\(pending.name)\" already exists in your library. Replacing it can't be undone.")
+                Text(locf("\"%@\" already exists in your library. Replacing it can't be undone.", pending.name))
             }
     }
 
@@ -931,7 +926,7 @@ struct GameBrowserView: View {
                 guard let url = urls.first else { return }
                 do {
                     let count = try WiiUKeys.importKeys(from: url)
-                    dlcUpdateSuccessMessage = "Added \(count) key\(count == 1 ? "" : "s"). Games use them the next time you start one. If you've already started a game since opening EspressU, close and reopen EspressU first."
+                    dlcUpdateSuccessMessage = locn(count, "Added %@ key. Games use them the next time you start one. If you've already started a game since opening EspressU, close and reopen EspressU first.", "Added %@ keys. Games use them the next time you start one. If you've already started a game since opening EspressU, close and reopen EspressU first.")
                 } catch {
                     dlcImportErrorMessage = error.localizedDescription
                 }
@@ -1037,7 +1032,7 @@ struct GameBrowserView: View {
                     manualMatch: manualMatch
                 )
                 if let matched = result.matchedGame {
-                    dlcUpdateSuccessMessage = "Added \(kind.displayName) for \"\(matched.title)\"."
+                    dlcUpdateSuccessMessage = locf("Added %@ for \"%@\".", kind.displayName, matched.title)
                 }
                 DocumentImport.discardPickerCopy(url)
             } catch DlcUpdateImport.ImportError.noBaseGameMatch {
@@ -1062,7 +1057,7 @@ struct DlcUpdateGamePickerSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationView {
+        EspressUNavigation {
             ZStack {
                 EspressUTheme.backgroundGradient.ignoresSafeArea()
                 List(games) { game in
@@ -1070,12 +1065,12 @@ struct DlcUpdateGamePickerSheet: View {
                         onPick(game)
                         dismiss()
                     } label: {
-                        Text(game.title)
+                        Text(loc(game.title))
                             .foregroundColor(EspressUTheme.brownDarkest)
                     }
                 }
             }
-            .navigationTitle("Add \(kind.displayName) to which game?")
+            .navigationTitle(locf("Add %@ to which game?", kind.displayName))
             .espressuOpaqueNavigationBar(EspressUTheme.formGround)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -1084,7 +1079,6 @@ struct DlcUpdateGamePickerSheet: View {
                 }
             }
         }
-        .navigationViewStyle(.stack)
     }
 }
 
@@ -1119,7 +1113,7 @@ struct GameCardOptimized<Options: View>: View {
         VStack(spacing: 0) {
             ZStack {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(EspressUTheme.cremaTopGradient)
+                    .fill(Color(UIColor.tertiarySystemFill))
 
                 if let coverPath = game.coverPath {
                     CoverImage(path: coverPath, padding: 10)
@@ -1128,7 +1122,7 @@ struct GameCardOptimized<Options: View>: View {
                     VStack {
                         Image(systemName: "gamecontroller.fill")
                             .font(.system(size: 28))
-                            .foregroundColor(EspressUTheme.onCremaTop)
+                            .foregroundColor(EspressUTheme.brownMid)
                     }
                 }
 
@@ -1141,12 +1135,11 @@ struct GameCardOptimized<Options: View>: View {
                                 .font(.system(size: 14, weight: .semibold))
                                 .foregroundColor(EspressUTheme.sparkleCream)
                                 .frame(width: 32, height: 32)
-                                .background(Color.black.opacity(0.4))
-                                .cornerRadius(10)
+                                .espressUSurface(Circle())
                                 .frame(width: 44, height: 44)
                                 .contentShape(Rectangle())
                         }
-                        .accessibilityLabel("More options for \(cardName.name)")
+                        .accessibilityLabel(locf("More options for %@", cardName.name))
                         .padding(8)
                         Spacer()
                         Button(action: onFavoriteTap) {
@@ -1154,12 +1147,11 @@ struct GameCardOptimized<Options: View>: View {
                                 .font(.system(size: 14, weight: .semibold))
                                 .foregroundColor(game.isFavorite ? EspressUTheme.alertOnDark : EspressUTheme.sparkleCream)
                                 .frame(width: 32, height: 32)
-                                .background(Color.black.opacity(0.4))
-                                .cornerRadius(10)
+                                .espressUSurface(Circle())
                                 .frame(width: 44, height: 44)
                                 .contentShape(Rectangle())
                         }
-                        .accessibilityLabel(game.isFavorite ? "Remove from favourites" : "Add to favourites")
+                        .accessibilityLabel(game.isFavorite ? loc("Remove from favourites") : loc("Add to favourites"))
                         .padding(8)
                     }
                     Spacer()
@@ -1168,15 +1160,15 @@ struct GameCardOptimized<Options: View>: View {
             .aspectRatio(3 / 4, contentMode: .fit)
 
             VStack(alignment: .leading, spacing: 8) {
-                Text(cardName.name)
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                Text(loc(cardName.name))
+                    .font(.footnote.weight(.semibold))
                     .lineLimit(2)
                     .foregroundColor(EspressUTheme.brownDarkest)
 
                 HStack(spacing: 8) {
                     if let region = game.region {
-                        Label(region, systemImage: "globe")
-                            .font(.system(size: 11, weight: .regular, design: .rounded))
+                        Label(loc(region), systemImage: "globe")
+                            .font(.caption2)
                             .foregroundColor(EspressUTheme.brownMid)
                     }
                     Spacer()
@@ -1189,14 +1181,14 @@ struct GameCardOptimized<Options: View>: View {
                         Image(systemName: "play.fill")
                             .font(.system(size: 10, weight: .semibold))
                         Text("Play")
-                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .font(.caption.weight(.semibold))
                     }
                     .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(EspressUPrimaryButtonStyle())
 
                 if let titleIdText = cardName.titleIdText {
-                    Text(titleIdText)
+                    Text(loc(titleIdText))
                         .font(.system(size: 10, weight: .regular, design: .monospaced))
                         .foregroundColor(EspressUTheme.brownMid)
                         .lineLimit(1)
@@ -1207,12 +1199,7 @@ struct GameCardOptimized<Options: View>: View {
             .background(EspressUTheme.cream)
         }
         .background(EspressUTheme.cream)
-        .cornerRadius(16)
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(EspressUTheme.wrapper, lineWidth: 1)
-        )
-        .shadow(color: EspressUTheme.shadow.opacity(0.15), radius: 8, x: 0, y: 4)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .onTapGesture(perform: onTap)
     }
@@ -1233,7 +1220,7 @@ struct SearchBarPolished: View {
             TextField("Search games...", text: $text)
                 .focused($focused)
                 .submitLabel(.search)
-                .font(.system(size: 15, weight: .regular, design: .rounded))
+                .font(.subheadline)
                 .textFieldStyle(.plain)
                 .foregroundColor(EspressUTheme.brownDarkest)
 
@@ -1251,12 +1238,7 @@ struct SearchBarPolished: View {
         .frame(height: 44)
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 12)
-        .background(EspressUTheme.wrapper.opacity(0.5))
-        .cornerRadius(14)
-        .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(EspressUTheme.wrapper, lineWidth: 1)
-        )
+        .espressUSurface(Capsule())
         .onAppear {
             if autoFocus {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { focused = true }
@@ -1284,7 +1266,7 @@ struct LoadingView: View {
                 }
 
             Text("Loading games...")
-                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                .font(.body.weight(.semibold))
                 .foregroundColor(EspressUTheme.brownDarkest)
         }
     }
@@ -1310,21 +1292,21 @@ struct EmptyGamesView: View {
 
     private var heading: String {
         switch kind {
-        case .emptyLibrary: return "No Games Yet"
-        case .noFavourites: return "No Favourites Yet"
-        case .noSearchMatch: return "No Matches"
+        case .emptyLibrary: return loc("No Games Yet")
+        case .noFavourites: return loc("No Favourites Yet")
+        case .noSearchMatch: return loc("No Matches")
         }
     }
 
     private var lines: [String] {
         switch kind {
         case .emptyLibrary:
-            return ["Tap Import a Game, or put game files in Files > On My iPad > EspressU > Roms.",
-                    "Games you add there show up when you come back to EspressU."]
+            return [loc("Tap Import a Game, or put game files in Files > On My iPad > EspressU > Roms."),
+                    loc("Games you add there show up when you come back to EspressU.")]
         case .noFavourites:
-            return ["Tap the heart on a game to add it here."]
+            return [loc("Tap the heart on a game to add it here.")]
         case .noSearchMatch(let text):
-            return ["Nothing matches \"\(text)\"."]
+            return [locf("Nothing matches \"%@\".", text)]
         }
     }
 
@@ -1336,15 +1318,15 @@ struct EmptyGamesView: View {
                 .accessibilityHidden(true)
 
             VStack(spacing: 8) {
-                Text(heading)
-                    .font(.system(size: 18, weight: .semibold, design: .rounded))
+                Text(loc(heading))
+                    .font(.headline)
                     .foregroundColor(EspressUTheme.brownDarkest)
                     .accessibilityAddTraits(.isHeader)
 
                 VStack(alignment: .center, spacing: 4) {
                     ForEach(lines, id: \.self) { line in
-                        Text(line)
-                            .font(.system(size: 13, weight: .regular, design: .rounded))
+                        Text(loc(line))
+                            .font(.footnote)
                             .foregroundColor(EspressUTheme.brownMid)
                             .multilineTextAlignment(.center)
                     }
@@ -1358,7 +1340,7 @@ struct EmptyGamesView: View {
                         Image(systemName: "doc.badge.plus")
                             .font(.system(size: 12, weight: .semibold))
                         Text("Import a Game")
-                            .font(.system(size: 13, weight: .semibold, design: .rounded))
+                            .font(.footnote.weight(.semibold))
                     }
                 }
                 .buttonStyle(EspressUPrimaryButtonStyle())
@@ -1379,11 +1361,12 @@ struct EmulatorViewOptimized: View {
     let game: GameMetadata
     @ObservedObject var gameManager: GameManager
     @Binding var isRunning: Bool
-    private let controllerSkin = WiiUControllerSkin.standard
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     @State private var isEditingControlLayout = false
+    @State private var isEditingSingleControls = false
+    @State private var selectedControl: CremaElement?
     @State private var padControlsHidden = false
     @State private var isPaused = false
     @State private var showHomeMenu = false
@@ -1393,15 +1376,12 @@ struct EmulatorViewOptimized: View {
     @State private var padShownDespiteController = false
     @State private var pausedByLifecycle = false
     private static let titlePauseQueue = DispatchQueue(label: "espressu.title.pause", qos: .userInitiated)
-    @AppStorage(PreviewPadStore.enabledKey) private var previewPadEnabled = PreviewPadStore.defaultEnabled
-    @AppStorage(ControllerLayoutSettings.joystickKey) private var joystickMode = ControllerLayoutSettings.defaultJoystick
-    @State private var touchLabScreens = TouchLabScreenState()
+    @State private var cremaScreens = CremaScreenState()
     @State private var topBarHeight: CGFloat = 0
     @AppStorage(TopBarAutoHide.enabledKey) private var topBarAutoHideEnabled = TopBarAutoHide.defaultEnabled
     @State private var topBarHidden = false
     @GestureState private var topBarTouched = false
     @State private var voiceOverRunning = UIAccessibility.isVoiceOverRunning
-    @ObservedObject private var previewPad = PreviewPadStore.shared
     @AppStorage(DisplayLayoutSettings.showSwapButtonKey)
     private var showSwapButton = DisplayLayoutSettings.defaultShowSwapButton
     @ObservedObject private var displayRouter = DisplayRouter.shared
@@ -1433,36 +1413,8 @@ struct EmulatorViewOptimized: View {
         skylanderPortalEnabled || infinityBaseEnabled || dimensionsToypadEnabled
     }
 
-    private enum PadSystem {
-        case touchLab
-        case preview
-        case espressu
-    }
-
-    private var padSystem: PadSystem {
-        return .touchLab
-    }
-
     private var isPhonePortrait: Bool {
         UIDevice.current.userInterfaceIdiom == .phone && verticalSizeClass == .regular
-    }
-
-    @ViewBuilder private func belowPicture<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
-        let built = content()
-        if isPhonePortrait {
-            GeometryReader { geometry in
-                let pictures = visibleScreens.reduce(CGFloat(0)) { $0 + portraitScreenHeight(main: $1, in: geometry.size) }
-                let needed = ControllerGeometry.Portrait.minimumHeight(joystick: joystickMode)
-                let height = min(geometry.size.height, max(geometry.size.height - pictures, needed))
-                VStack(spacing: 0) {
-                    Spacer(minLength: 0)
-                    built
-                        .frame(height: height)
-                }
-            }
-        } else {
-            built
-        }
     }
 
     private var nativeOverlayActive: Bool {
@@ -1491,22 +1443,33 @@ struct EmulatorViewOptimized: View {
         }
     }
 
-    @ViewBuilder private var layoutPanel: some View {
-        let gameID = gameManager.currentGame?.settingsKey
-        switch padSystem {
-        case .touchLab:
-            TouchLabLayoutPanel(gameID: gameID, onDone: finishEditingLayout)
-        case .preview:
-            PreviewLayoutPanel(onDone: finishEditingLayout)
-        case .espressu:
-            EspressUPadLayoutPanel(onDone: finishEditingLayout)
+    private var layoutPanel: some View {
+        Group {
+            if isEditingSingleControls {
+                CremaElementPanel(selection: $selectedControl, onDone: finishEditingSingleControls)
+            } else {
+                CremaLayoutPanel(onEditElements: startEditingSingleControls, onDone: finishEditingLayout)
+            }
         }
+    }
+
+    private func startEditingSingleControls() {
+        cemu_bridge_release_all_buttons()
+        selectedControl = nil
+        withAnimation(.easeInOut(duration: 0.2)) { isEditingSingleControls = true }
+    }
+
+    private func finishEditingSingleControls() {
+        withAnimation(.easeInOut(duration: 0.2)) { isEditingSingleControls = false }
+        selectedControl = nil
     }
 
     private func finishEditingLayout() {
         withAnimation(.easeInOut(duration: 0.2)) {
             isEditingControlLayout = false
+            isEditingSingleControls = false
         }
+        selectedControl = nil
     }
 
     /// The on-screen controls are hidden when the player hid them in the home menu or a controller hides them, but
@@ -1531,8 +1494,8 @@ struct EmulatorViewOptimized: View {
         guard autoHideWithController, padHiddenByController || wasHidden else { return }
         if atStart && gameManager.launchNotice != nil { return }
         gameManager.showLaunchNotice(connected
-            ? "Controller connected. On-screen controls hidden. Menu: HOME, the touchpad or Select + Start."
-            : "Controller disconnected. On-screen controls shown.")
+            ? loc("Controller connected. On-screen controls hidden. Menu: HOME, the touchpad or Select + Start.")
+            : loc("Controller disconnected. On-screen controls shown."))
     }
 
     private func openHomeMenu() {
@@ -1624,61 +1587,7 @@ struct EmulatorViewOptimized: View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            if padSystem == .preview {
-                GeometryReader { proxy in
-                    let insets = proxy.safeAreaInsets
-                    let full = proxy.frame(in: .local)
-                    let safeArea = CGRect(x: full.minX + insets.leading, y: full.minY + insets.top,
-                                          width: full.width - insets.leading - insets.trailing,
-                                          height: full.height - insets.top - insets.bottom)
-                    let resolved = previewPad.resolve(container: proxy.size, safeArea: safeArea,
-                                                      pointsPerInch: DeviceMetrics.current().pointsPerInch)
-                    let native = previewPad.effectiveDisplayMode(container: proxy.size) == .native
-                    ZStack(alignment: .topLeading) {
-                        MetalViewIOS(gameManager: gameManager)
-                    }
-                    .frame(width: native ? resolved.video.width : proxy.size.width,
-                          height: native ? resolved.video.height : proxy.size.height)
-                    .position(x: native ? resolved.video.midX : proxy.size.width / 2,
-                             y: native ? resolved.video.midY : proxy.size.height / 2)
-                    .clipped()
-
-                    if !padHidden {
-                        PreviewControllerPad(
-                            store: previewPad,
-                            onInput: { label, pressed in
-                                sendPadButton(label, pressed)
-                            },
-                            onStick: { stick, position in
-                                PadDiagnostics.shared.recordStick(stick, position)
-                                cemu_bridge_set_stick_axis(
-                                    stick == 0 ? CEMU_BRIDGE_STICK_LEFT : CEMU_BRIDGE_STICK_RIGHT,
-                                    Float(position.x), Float(position.y)
-                                )
-                            },
-                            isEditingLayout: $isEditingControlLayout
-                        )
-                        .onAppear { PadDiagnostics.shared.report(activePad: .preview) }
-                        .onDisappear { cemu_bridge_release_all_buttons() }
-                    }
-
-                    #if DEBUG
-                    VStack {
-                        Text("PAD DEBUG: \(PadDiagnostics.shared.lastInput) / \(PadDiagnostics.shared.lastStick)")
-                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                            .foregroundColor(.yellow)
-                            .padding(6)
-                            .background(Color.black.opacity(0.7))
-                            .cornerRadius(6)
-                            .padding(.top, 4)
-                        Spacer()
-                    }
-                    .allowsHitTesting(false)
-                    #endif
-                }
-            } else {
-                screenLayoutComposition
-            }
+            screenLayoutComposition
 
             NativeCoreOverlayView(active: nativeOverlayActive, topInset: overlayTopInset)
 
@@ -1686,19 +1595,19 @@ struct EmulatorViewOptimized: View {
                 HStack(alignment: .top, spacing: 10) {
                     HStack(spacing: 2) {
                         if gameManager.emulationState == .loading {
-                            InGamePillButton(symbol: "xmark", title: "Cancel") {
+                            InGamePillButton(symbol: "xmark", title: loc("Cancel")) {
                                 gameManager.stopEmulation()
                                 isRunning = true
                             }
                         } else if isEditingControlLayout {
-                            InGamePillButton(symbol: "checkmark", title: "Done") { finishEditingLayout() }
+                            InGamePillButton(symbol: "checkmark", title: loc("Done")) { finishEditingLayout() }
                         } else {
-                            InGamePillButton(symbol: "house.fill", title: isPhonePortrait ? nil : "Menu", action: openHomeMenu)
+                            InGamePillButton(symbol: "house.fill", title: isPhonePortrait ? nil : loc("Menu"), action: openHomeMenu)
                                 .disabled(gameManager.emulationState != .running || showHomeMenu)
                                 .accessibilityLabel("HOME menu")
                             InGamePillButton(symbol: isPaused ? "play.fill" : "pause.fill", title: nil, action: togglePause)
                                 .disabled(gameManager.emulationState != .running)
-                                .accessibilityLabel(isPaused ? "Resume" : "Pause")
+                                .accessibilityLabel(isPaused ? loc("Resume") : loc("Pause"))
                         }
                     }
                     .padding(4)
@@ -1710,10 +1619,11 @@ struct EmulatorViewOptimized: View {
                         InGameBlowButton(enabled: !isPaused)
                         HStack(spacing: 6) {
                             Circle()
-                                .fill(gameManager.frameRate >= 20 ? Color.green : EspressUTheme.alertOnDark)
+                                .fill((gameManager.frameGenDisplayRate?.output ?? Double(gameManager.frameRate)) >= 20
+                                      ? Color.green : EspressUTheme.alertOnDark)
                                 .frame(width: 8, height: 8)
-                            Text(gameManager.progress.hudText(wholeFramesPerSecond: gameManager.frameRate))
-                                .font(.system(size: 13, weight: .bold, design: .rounded))
+                            Text(loc(gameManager.frameRateHUDText))
+                                .font(.footnote.weight(.semibold))
                                 .monospacedDigit()
                                 .foregroundColor(.white)
                                 .lineLimit(1)
@@ -1723,7 +1633,7 @@ struct EmulatorViewOptimized: View {
                         .espressUSurface(Capsule())
                         .accessibilityElement(children: .ignore)
                         .accessibilityLabel("Frame rate")
-                        .accessibilityValue(gameManager.progress.hudText(wholeFramesPerSecond: gameManager.frameRate))
+                        .accessibilityValue(gameManager.frameRateHUDText)
                     }
                 }
                 .environment(\.colorScheme, .dark)
@@ -1751,37 +1661,14 @@ struct EmulatorViewOptimized: View {
 
             if !padHidden {
                 Group {
-                if padSystem == .touchLab {
-                    TouchLabPadOverlay(
-                        gameID: gameManager.currentGame?.settingsKey,
-                        screens: touchLabScreens,
-                        enabled: !isPaused && !isEditingControlLayout,
-                        topInset: isPhonePortrait ? 0 : topBarHeight
-                    )
-                    .onAppear { PadDiagnostics.shared.report(activePad: .touchLab) }
-                } else if padSystem == .espressu {
-                    belowPicture {
-                    OptimizedControlPanel(
-                        skin: controllerSkin,
-                        onInput: { label, pressed in
-                            sendPadButton(label, pressed)
-                        },
-                        onStick: { stick, position in
-                            PadDiagnostics.shared.recordStick(stick, position)
-                            cemu_bridge_set_stick_axis(
-                                stick == 0 ? CEMU_BRIDGE_STICK_LEFT : CEMU_BRIDGE_STICK_RIGHT,
-                                Float(position.x),
-                                Float(position.y)
-                            )
-                        },
-                        isEditingLayout: $isEditingControlLayout,
-                        isPaused: isPaused,
-                        topInset: isPhonePortrait ? 0 : topBarHeight,
-                        portrait: isPhonePortrait
-                    )
-                    .onAppear { PadDiagnostics.shared.report(activePad: .espressu) }
-                    }
-                }
+                CremaPad(
+                    screens: cremaScreens,
+                    enabled: !isPaused && !isEditingControlLayout,
+                    topInset: isPhonePortrait ? 0 : topBarHeight,
+                    editing: isEditingSingleControls,
+                    selection: $selectedControl
+                )
+                .onAppear { PadDiagnostics.shared.report(activePad: .crema) }
                 }
                 .dynamicTypeSize(...DynamicTypeSize.xLarge)
             }
@@ -1791,8 +1678,6 @@ struct EmulatorViewOptimized: View {
                     HStack {
                         PadDiagnosticsOverlay(
                             padControlsHidden: padHidden,
-                            previewPadEnabled: previewPadEnabled,
-                            touchLabScheme: TouchLabSettings.schemeID,
                             isEditingLayout: isEditingControlLayout,
                             isPaused: isPaused
                         )
@@ -1809,10 +1694,10 @@ struct EmulatorViewOptimized: View {
                         .font(.system(size: 40))
                         .accessibilityHidden(true)
                     Text("PAUSED")
-                        .font(.system(size: 22, weight: .bold, design: .rounded))
+                        .font(.title3.weight(.semibold))
                         .tracking(2)
                     Text("Tap to resume")
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .font(.subheadline.weight(.semibold))
                         .opacity(0.85)
                 }
                 .foregroundColor(.white)
@@ -1830,8 +1715,8 @@ struct EmulatorViewOptimized: View {
                 VStack(spacing: 12) {
                     ProgressView()
                         .tint(.white)
-                    Text("Starting \(game.title)…")
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    Text(locf("Starting %@…", game.title))
+                        .font(.footnote.weight(.semibold))
                         .foregroundColor(.white.opacity(0.8))
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 24)
@@ -1998,7 +1883,7 @@ struct EmulatorViewOptimized: View {
         try? await Task.sleep(nanoseconds: TopBarAutoHide.hideDelayNanoseconds)
         guard !Task.isCancelled else { return }
         setTopBarHidden(true)
-        showHintOnce(Self.topBarHintKey, "Tap or swipe down at the top edge to bring the bar back.")
+        showHintOnce(Self.topBarHintKey, loc("Tap or swipe down at the top edge to bring the bar back."))
     }
 
     private static let topBarHintKey = "espressu.hint.topBarReveal"
@@ -2020,7 +1905,7 @@ struct EmulatorViewOptimized: View {
 
     private func showGamePadHintIfNeeded() {
         #if os(iOS)
-        showHintOnce(Self.gamePadHintKey, "Tap the GamePad screen to use it in the game.", ready: {
+        showHintOnce(Self.gamePadHintKey, loc("Tap the GamePad screen to use it in the game."), ready: {
             gameManager.emulationState == .running && (isPadViewVisible || padIsOnDeviceInDualScreen)
         })
         #endif
@@ -2058,39 +1943,39 @@ struct EmulatorViewOptimized: View {
 
     private var stallTitle: String {
         switch gameManager.videoStallKind {
-        case 2: return "Graphics stopped working"
-        case 3: return "Out of memory for the picture"
-        case 4: return "Memory is running low"
-        case 5: return "The screen stopped updating"
-        default: return "The picture froze"
+        case 2: return loc("Graphics stopped working")
+        case 3: return loc("Out of memory for the picture")
+        case 4: return loc("Memory is running low")
+        case 5: return loc("The screen stopped updating")
+        default: return loc("The picture froze")
         }
     }
 
     private var stallAdvice: String {
         switch gameManager.videoStallKind {
-        case 2: return "iOS stopped running this game's graphics. Tap Quit Game. EspressU will then ask you to close and reopen it before the next game."
-        case 3: return "Tap Quit Game and reopen EspressU. After you quit, a lower Resolution (in Settings, Graphics) uses less memory."
-        case 4: return "iOS may close EspressU soon. Quit the game soon. After you quit, a lower Resolution (in Settings, Graphics) uses less memory."
-        case 5: return "The game is still running but the screen isn't taking frames. This goes away by itself if it recovers. If it doesn't, tap Quit Game and reopen EspressU."
-        default: return "The picture has stopped while the game keeps running. This goes away by itself if the picture comes back."
+        case 2: return loc("iOS stopped running this game's graphics. Tap Quit Game. EspressU will then ask you to close and reopen it before the next game.")
+        case 3: return loc("Tap Quit Game and reopen EspressU. After you quit, a lower Resolution (in Settings, Graphics) uses less memory.")
+        case 4: return loc("iOS may close EspressU soon. Quit the game soon. After you quit, a lower Resolution (in Settings, Graphics) uses less memory.")
+        case 5: return loc("The game is still running but the screen isn't taking frames. This goes away by itself if it recovers. If it doesn't, tap Quit Game and reopen EspressU.")
+        default: return loc("The picture has stopped while the game keeps running. This goes away by itself if the picture comes back.")
         }
     }
 
     private var stallDismissTitle: String {
         let kind = gameManager.videoStallKind
-        return (kind == 1 || kind == 5) ? "Keep waiting" : "Dismiss"
+        return (kind == 1 || kind == 5) ? loc("Keep waiting") : loc("Dismiss")
     }
 
     private var videoStalledCard: some View {
         VStack(spacing: 10) {
-            Text(stallTitle)
-                .font(.system(.subheadline, design: .rounded).weight(.semibold))
+            Text(loc(stallTitle))
+                .font(.system(.subheadline).weight(.semibold))
                 .foregroundColor(.white)
                 .multilineTextAlignment(.center)
                 .accessibilityAddTraits(.isHeader)
             if gameManager.videoStalled {
-                Text(stallAdvice)
-                    .font(.system(.caption, design: .rounded))
+                Text(loc(stallAdvice))
+                    .font(.system(.caption))
                     .foregroundColor(.white.opacity(0.85))
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
@@ -2100,7 +1985,7 @@ struct EmulatorViewOptimized: View {
                     gameManager.stopEmulation()
                     isRunning = true
                 }
-                Button(stallDismissTitle) {
+                Button(loc(stallDismissTitle)) {
                     stallCardDismissed = true
                 }
             }
@@ -2126,7 +2011,6 @@ struct EmulatorViewOptimized: View {
                 HStack(alignment: .top, spacing: 0) {
                     MetalViewIOS(gameManager: gameManager)
                         .frame(width: geometry.size.width - padWidth, height: geometry.size.height)
-                        .touchLabTVScreen()
 
                     padScreen
                         .frame(width: padWidth, height: padHeight)
@@ -2140,7 +2024,7 @@ struct EmulatorViewOptimized: View {
             }
         }
         .ignoresSafeArea(.all, edges: verticalSizeClass == .regular ? .horizontal : .all)
-        .trackTouchLabScreens($touchLabScreens, imageIsAspectFit: { !FrameStretch.isEnabled })
+        .trackCremaScreens($cremaScreens)
         .onAppear { updateVisibleOutputs() }
         .onValueChange(of: screenLayout) { _ in updateVisibleOutputs() }
         .onValueChange(of: localSwapped) { _ in updateVisibleOutputs() }
@@ -2173,7 +2057,7 @@ struct EmulatorViewOptimized: View {
     private func portraitScreenHeight(main: Bool, in size: CGSize) -> CGFloat {
         let full = size.width * 9.0 / 16.0
         guard !main, visibleScreens.count > 1 else { return full }
-        let room = size.height - full - ControllerGeometry.Portrait.minimumHeight(joystick: joystickMode)
+        let room = size.height - full - CremaLayout.portraitMinimumHeight
         return min(full, max(full * 0.55, room))
     }
 
@@ -2197,7 +2081,6 @@ struct EmulatorViewOptimized: View {
                             if padIsOnDeviceInDualScreen { sendPadTouch(value.location, down: false) }
                         }
                 )
-                .touchLabTVScreen()
         } else {
             padScreen
         }
@@ -2214,7 +2097,7 @@ struct EmulatorViewOptimized: View {
                     .onChanged { value in sendPadTouch(value.location, down: true) }
                     .onEnded { value in sendPadTouch(value.location, down: false) }
             )
-            .touchLabGamePadScreen()
+            .cremaGamePadScreen()
     }
 
     private func sendPadTouch(_ location: CGPoint, down: Bool) {
@@ -2249,44 +2132,6 @@ private struct HideSystemOverlaysIfAvailable: ViewModifier {
 private extension View {
     func hidingSystemOverlaysDuringPlay() -> some View {
         modifier(HideSystemOverlaysIfAvailable())
-    }
-}
-
-@MainActor private func sendPadButton(_ label: String, _ pressed: Bool) {
-    PadDiagnostics.shared.recordInput(label, pressed)
-    if label == "HOME" {
-        HomeMenuRouter.shared.padHome(pressed: pressed)
-        return
-    }
-    cemu_bridge_set_button_state(cemuBridgeButton(forLabel: label), pressed)
-}
-
-private func cemuBridgeButton(forLabel label: String) -> CemuBridgeButton {
-    switch label {
-    case "up":    return CEMU_BRIDGE_BUTTON_UP
-    case "down":  return CEMU_BRIDGE_BUTTON_DOWN
-    case "left":  return CEMU_BRIDGE_BUTTON_LEFT
-    case "right": return CEMU_BRIDGE_BUTTON_RIGHT
-
-    case "A": return CEMU_BRIDGE_BUTTON_A
-    case "B": return CEMU_BRIDGE_BUTTON_B
-    case "X": return CEMU_BRIDGE_BUTTON_X
-    case "Y": return CEMU_BRIDGE_BUTTON_Y
-
-    case "L":  return CEMU_BRIDGE_BUTTON_L
-    case "R":  return CEMU_BRIDGE_BUTTON_R
-    case "ZL": return CEMU_BRIDGE_BUTTON_ZL
-    case "ZR": return CEMU_BRIDGE_BUTTON_ZR
-
-    case "plus":  return CEMU_BRIDGE_BUTTON_PLUS
-    case "minus": return CEMU_BRIDGE_BUTTON_MINUS
-
-    case "L3": return CEMU_BRIDGE_BUTTON_STICK_L
-    case "R3": return CEMU_BRIDGE_BUTTON_STICK_R
-
-    case "HOME": return CEMU_BRIDGE_BUTTON_HOME
-
-    default: return CEMU_BRIDGE_BUTTON_NONE
     }
 }
 

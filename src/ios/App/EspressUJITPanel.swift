@@ -31,11 +31,11 @@ final class EspressUJITPanelModel: ObservableObject {
     }
 
     var rows: [Row] {
-        var rows = [Row(id: "toggle", kind: .toggle, title: "Use JIT",
-                        detail: enabled ? "Games use the fast recompiler." : "Games use the slow interpreter.",
+        var rows = [Row(id: "toggle", kind: .toggle, title: loc("Use JIT"),
+                        detail: enabled ? loc("Games use the fast recompiler.") : loc("Games use the slow interpreter."),
                         systemImage: enabled ? "bolt.fill" : "tortoise.fill")]
-        rows.append(Row(id: "settings", kind: .settings, title: "JIT settings",
-                        detail: "On or off, pairing, pairing file.", systemImage: "gearshape.fill"))
+        rows.append(Row(id: "settings", kind: .settings, title: loc("JIT settings"),
+                        detail: loc("On or off, pairing, pairing file."), systemImage: "gearshape.fill"))
         return rows
     }
 
@@ -133,11 +133,11 @@ struct EspressUJITPanel: View {
                 .frame(width: 56, height: 56)
                 .background(statusTint.opacity(0.15), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             VStack(alignment: .leading, spacing: 3) {
-                Text(overview.title)
-                    .font(.system(size: 19, weight: .heavy, design: .rounded))
+                Text(loc(overview.title))
+                    .font(.headline)
                     .foregroundColor(EspressUTheme.brownDarkest)
-                Text(overview.subtitle)
-                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                Text(loc(overview.subtitle))
+                    .font(.footnote.weight(.medium))
                     .foregroundColor(EspressUTheme.brownMid)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -154,7 +154,7 @@ struct EspressUJITPanel: View {
                 .foregroundColor(EspressUTheme.brownMid)
                 .padding(.horizontal, showsFocus ? 12 : 0)
                 .frame(minWidth: 36, minHeight: 36)
-                .background(EspressUTheme.wrapper.opacity(0.6), in: Capsule())
+                .espressUSurface(Capsule())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Close")
@@ -172,13 +172,13 @@ struct EspressUJITPanel: View {
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundColor(EspressUTheme.accentText)
                     .frame(width: 38, height: 38)
-                    .background(EspressUTheme.wrapper, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+                    .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(row.title)
-                        .font(.system(size: 17, weight: .bold, design: .rounded))
+                    Text(loc(row.title))
+                        .font(.body.weight(.semibold))
                         .foregroundColor(EspressUTheme.brownDarkest)
-                    Text(row.detail)
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                    Text(loc(row.detail))
+                        .font(.caption.weight(.medium))
                         .foregroundColor(EspressUTheme.brownMid)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -199,7 +199,7 @@ struct EspressUJITPanel: View {
                     .fill(EspressUTheme.pixelBlue.opacity(focused ? 0.1 : 0)))
             .overlay(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .strokeBorder(EspressUTheme.pixelBlue, lineWidth: 3)
+                    .strokeBorder(EspressUTheme.pixelBlue, lineWidth: 2)
                     .opacity(focused ? 1 : 0))
             .contentShape(Rectangle())
         }

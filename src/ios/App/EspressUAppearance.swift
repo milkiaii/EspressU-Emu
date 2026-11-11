@@ -34,7 +34,7 @@ enum EspressUAppearance {
 
 extension EspressUThemePresets {
     static let espressU = EspressUThemeDefinition(
-        id: "espressu", name: "EspressU", iconId: "original",
+        id: "espressu", name: loc("EspressU"), iconId: "original",
         backgroundTopLight: "#F4F7F9", backgroundTopDark: "#12161B",
         backgroundBottomLight: "#E3E9EE", backgroundBottomDark: "#08090B",
         cremaTopLightLight: "#3FC4EE", cremaTopLightDark: "#2AB4E2",
@@ -42,7 +42,7 @@ extension EspressUThemePresets {
         creamLight: "#FFFFFF", creamDark: "#171B21",
         wrapperLight: "#EEF2F5", wrapperDark: "#222831",
         blueberryNavyLight: "#1F3A5A", blueberryNavyDark: "#8FB4DA",
-        pixelBlueLight: "#0E8FC0", pixelBlueDark: "#3CC3F0",
+        pixelBlueLight: "#3A3A3C", pixelBlueDark: "#E5E5EA",
         blushPinkLight: "#E5484D", blushPinkDark: "#FF6B70",
         brownDarkestLight: "#1B232B", brownDarkestDark: "#F2F5F8",
         brownDarkLight: "#34404C", brownDarkDark: "#D5DCE3",
