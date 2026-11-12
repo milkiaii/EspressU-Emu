@@ -823,6 +823,11 @@ struct GameBrowserView: View {
     }
 
     private func withAlerts<Content: View>(_ content: Content) -> some View {
+        withDialogs(withBasicAlerts(content))
+    }
+
+    // Split in two so the compiler can type-check the modifier chain in reasonable time.
+    private func withBasicAlerts<Content: View>(_ content: Content) -> some View {
         content
             .alert("Added", isPresented: .constant(dlcUpdateSuccessMessage != nil), presenting: dlcUpdateSuccessMessage) { _ in
                 Button("OK") { dlcUpdateSuccessMessage = nil }
@@ -852,6 +857,10 @@ struct GameBrowserView: View {
             } message: { pending in
                 Text(locf("Couldn't automatically match this %@ to a game already in your library. Add it to \"%@\" - the game you long-pressed?", pending.kind.displayName, pending.game.title))
             }
+    }
+
+    private func withDialogs<Content: View>(_ content: Content) -> some View {
+        content
             .confirmationDialog(
                 loc("Remove content?"),
                 isPresented: .constant(pendingRemoval != nil),
